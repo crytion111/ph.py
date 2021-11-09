@@ -261,29 +261,14 @@ def search_on_street():
 def init(status):
     status["Message"] = '''
         欢迎游玩《三和浮尘录》，本游戏试图模拟一个三和大神的生活，从而展示另一个底层的世界
-        这并不代表作者赞同三和大神的想法，甚至是带有批判的意味来制作的本游戏
-        但是，将三和大神看作一种奇特的生物来满足猎奇的心理，同样也是不妥的
-
-        为此，作者试图用一个游戏向玩家勾勒三和大神们所遇到的困境、痛苦和迷茫
-        并警示任何一个人，避免走上这样的道路
-
-        如今戒赌吧已经被封，这些人的故事如同浮尘一样，在三和的大街上飘散，
-        作者希望能够稍微记录一下，这些人的故事
-
-
+        
         [开端]
         当你开始网赌的时候，你听过无数人说，“不赌为赢”，但是你还是想去刺激一下，试一试
-
         当你输了这个月工资的时候，你一咬牙一跺脚，坚持要通过一把梭哈把整个月的工资赌回来
-
         当你把积蓄全部输光的时候，你已经无法收场了，你打开了各种小贷APP，开始拆东墙补西墙，寄希望于一把翻盘
-
         当你小贷APP的催收短信轰炸到你只能关闭手机的时候，你意识到，你和戒赌吧的老哥们就快要会和了
-
         当高利贷敲你家房门，群发侮辱你的短信给你所有联系人的时候，你借钱买了一张来三和的车票
-
         当你看到三和人才市场的大门，你终于意识到，你和那些你当笑话看的戒赌吧老哥，没有任何区别
-
         当你下车的时候，身上除了一张身份证，只剩下5块钱
     '''
 
@@ -435,6 +420,9 @@ def add_root_operation(name,handler):
     action_stack[0].append((name,handler))
 
 def event_manager(ctx):
+    global bGameStarted
+    global action_stack
+    global status
     #===============health and money check ===================
     if status["HP"] <= 0 :
         straa = reflush_screen()
@@ -443,18 +431,39 @@ def event_manager(ctx):
         当人们发现你的时候，你已经在三和的街边凉透了。
         你的遗体被送回老家，但是没有任何亲戚愿意出面帮一个借钱不还的废物举办葬礼。
         最后你的老父亲出面，把你火化了，成为了你们家空空如也的房间里唯一的一样家具——你的骨灰盒
+        
+        !!!!!!!!!!!!游戏结束!!!!!!!!!\n 请重新输入 开始游戏
         ''')
         action.send_group_text_msg(ctx.FromGroupId, straa + strRRRR)
-
+        bGameStarted = False
+        action_stack = [[]]
+        status = {
+            "Money":5,
+            "HP":100,
+            "Debt":50000,
+            "Message":"",
+            "ContinueWorkTime":0
+            }
     if status["Money"] <= 0:
         strbb = reflush_screen()
         strRRRR = ('''
         即使在三和，也需要一点点的流动资金才能够活下去。如今你真的走到了身无分文的境地，
         怎么说呢，你也许距离饿死也不太远了。
         放弃吧，当你兴致勃勃地梭哈的时候，就该想到这一天
+        
+        !!!!!!!!!!!!游戏结束!!!!!!!!!\n 请重新输入 开始游戏
         ''')
         action.send_group_text_msg(ctx.FromGroupId, strbb + strRRRR)
-
+        bGameStarted = False
+        action_stack = [[]]
+        status = {
+            "Money":5,
+            "HP":100,
+            "Debt":50000,
+            "Message":"",
+            "ContinueWorkTime":0
+            }
+        
     if status["HP"] > 100:
         status["HP"] = 100
     #===============睡觉===============================
@@ -508,32 +517,49 @@ def main(ctx):
 def receive_group_msg(ctx: GroupMsg):
 
     global bGameStarted
+    global action_stack
+    global status
 
     strCont = ctx.Content
     
     if 157199224 == ctx.FromUserId:
         return 1
-    if strCont == "开始游戏" and bGameStarted == False:
-        bGameStarted = True
-        main(ctx)
-    if strCont.startswith("继续游戏") and bGameStarted == True:
-        args = [i.strip() for i in strCont.split(" ") if i.strip()]
-        if len(args) == 2:
-            strSelect = args[1]
-            try:
-                intSelect = int(strSelect)
-                handle_input(intSelect)
-                event_manager(ctx)
-                str = reflush_screen()
-                action.send_group_text_msg(ctx.FromGroupId, str)
-            except:
-                action.send_group_text_msg(ctx.FromGroupId, "输入数字错误! 比如回复 继续游戏 1")
+    if strCont == "开始游戏":
+        if bGameStarted == False:
+            bGameStarted = True
+            main(ctx)
         else:
-            action.send_group_text_msg(ctx.FromGroupId, "输入多了!! 比如回复 继续游戏 1")
+            action.send_group_text_msg(ctx.FromGroupId, "游戏正在进行中, 不能多开")
+    if strCont.startswith("继续游戏"):
+        if bGameStarted == True:
+            args = [i.strip() for i in strCont.split(" ") if i.strip()]
+            if len(args) == 2:
+                strSelect = args[1]
+                try:
+                    intSelect = int(strSelect)
+                    handle_input(intSelect)
+                    event_manager(ctx)
+                    if bGameStarted == True:
+                        str = reflush_screen()
+                        action.send_group_text_msg(ctx.FromGroupId, str)
+                except:
+                    action.send_group_text_msg(ctx.FromGroupId, "输入数字错误! 比如回复 继续游戏 1")
+            else:
+                action.send_group_text_msg(ctx.FromGroupId, "输入多了!! 比如回复 继续游戏 1")
+        else:
+            action.send_group_text_msg(ctx.FromGroupId, "游戏未开始, 请回复 开始游戏")
 
     if strCont == "结束游戏" and bGameStarted == True:
         bGameStarted = False
         action_stack = [[]]
+        status = {
+            "Money":5,
+            "HP":100,
+            "Debt":50000,
+            "Message":"",
+            "ContinueWorkTime":0
+            }
+
         action.send_group_text_msg(ctx.FromGroupId, "游戏关闭")
         
         
