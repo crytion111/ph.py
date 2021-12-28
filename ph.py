@@ -709,7 +709,7 @@ def event_manager(ctx):
 你的遗体被送回老家，但是没有任何亲戚愿意出面帮一个借钱不还的废物举办葬礼。
 最后你的老父亲出面，把你火化了，成为了你们家空空如也的房间里唯一的一样家具——你的骨灰盒
         
-!!!!!!!!!!!!游戏结束!!!!!!!!!\n 请重新输入 开始游戏
+!!!!!!!!!!!!游戏结束!!!!!!!!!\n 请重新输入 开始流浪
         ''')
         action.send_group_text_msg(ctx.FromGroupId, straa + strRRRR)
         bGameStarted = False
@@ -728,7 +728,7 @@ def event_manager(ctx):
 怎么说呢，你也许距离饿死也不太远了。
 放弃吧，当你兴致勃勃地梭哈的时候，就该想到这一天
 
-!!!!!!!!!!!!游戏结束!!!!!!!!!\n 请重新输入 开始游戏
+!!!!!!!!!!!!游戏结束!!!!!!!!!\n 请重新输入 开始流浪
         ''')
         action.send_group_text_msg(ctx.FromGroupId, strbb + strRRRR)
         bGameStarted = False
@@ -2116,7 +2116,7 @@ def receive_group_msg(ctx: GroupMsg):
             
             
             
-    if strCont == "开始游戏":
+    if strCont == "开始流浪":
         if bGameStarted == False:
             bGameStarted = True
             main(ctx)
@@ -2139,7 +2139,7 @@ def receive_group_msg(ctx: GroupMsg):
             else:
                 action.send_group_text_msg(ctx.FromGroupId, "输入多了!! 比如回复 继续游戏 1")
         else:
-            action.send_group_text_msg(ctx.FromGroupId, "游戏未开始, 请回复 开始游戏")
+            action.send_group_text_msg(ctx.FromGroupId, "游戏未开始, 请回复 开始流浪")
     if strCont == "结束游戏" and bGameStarted == True:
         bGameStarted = False
         action_stack = [[]]
@@ -2234,11 +2234,33 @@ def receive_AT_group_msg(ctx: GroupMsg):
     strCont = objCtx['Content']
     atUserID = objCtx['UserID'][0]
 
-    #print("#asdasda==" + str(strCont.find("买家秀")))
+    #print("#asdasda==" + str(strCont.find("菜单")))
 
     if(atUserID == 157199224):
+        if strCont.find("菜单") > -1:
+            struuuu = '''
+            发送[买家秀], 则回复好看的买家秀图=\n
+            发送[磁力搜 搜索内容],则回复磁力链接=\n
+            发送[开始流浪],则开始玩流浪汉文字游戏=\n
+            发送[开始扫雷],则开始玩扫雷游戏=\n
+            发送[摸鱼],回复节假日信息=\n
+            发送[蟑螂],回复随机蟑螂图=\n
+            发送[狗屁不通 关键词],回复由关键词生成的狗屁不通文章=\n
+            发送[讲个笑话],回复一个笑话=\n
+            发送[幻影坦克],回复买家秀生成的幻影坦克图片=\n
+            发送[制作幻影坦克 加两个图片],回复指定两个图片生成的幻影坦克图片=\n
+            发送[脱衣1 加一个图片],回复指定图片生成的AI脱衣图片(deamtime源码)=\n
+            发送[脱衣2 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)=\n
+            发送[做图 内容],回复por...hub风格的logo=\n
+            发送[百度一下 内容],回复该内容的网络信息=\n
+            发送[绝绝子 内容],回复该内容生成的神经病文学=\n
+            发送[翻译翻译 拼音缩写],就能让机器翻译内容 比如 翻译翻译 yyds, 翻译永远滴神\n
+            @机器人可以和机器人对话=\n
+            @机器人后回复 说说+内容,就能让机器人读出内容 比如@jj-姬器人 说说 你是傻逼=\n
+            '''
+            action.send_group_text_msg(ctx.FromGroupId, struuuu, ctx.FromUserId)
         # 模特 ------------------------------
-        if strCont.find("买家秀") > -1:
+        elif strCont.find("买家秀") > -1:
             indexInt = random.randint(1, 6)
             taobaoUrl = "https://api.uomg.com/api/rand.img3"
             if indexInt == 1:
