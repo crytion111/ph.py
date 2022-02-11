@@ -1,4 +1,4 @@
-#!/usr/bin/python
+﻿#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 from iotbot import IOTBOT, Action, FriendMsg, GroupMsg, EventMsg
@@ -10,26 +10,18 @@ from tinydb.storages import MemoryStorage
 from tinydb.operations import add
 from loguru import logger
 import base64
-import threading
 import requests
 import random
 import time
 import re
 import json
-import sys
 import os
 import io
-import datetime
-import hashlib
-import uuid
-import pathlib
 from PIL import Image, ImageDraw, ImageFont
-import urllib
 import urllib.parse
 from MyQR import myqr
 import wave
 import math
-#import error
 import struct
 from base64 import b64encode
 import cv2
@@ -39,10 +31,15 @@ import jieba.posseg as pseg
 jieba.setLogLevel(20)
 from pydantic import BaseModel
 import copy
-import lunardate
-import chinese_calendar
 from io import BytesIO
 from aip import AipSpeech
+import math, json
+
+import torch
+import torch.nn as nn
+from torch.nn import functional as F
+import src.utils
+from src.model import GPT, GPTConfig
 #-------------------------------------------------------------
 
 def file_to_base64(path):
@@ -116,77 +113,6 @@ def random_cockroach():
 
 
 #--------------------------------------------------------------
-
-
-#--------------------------------------------------------------------------------------
-def MOYU():
-    YEAR_NUMBERS = "〇一二三四五六七八九"
-    MONTH_NUMBERS = "〇一二三四五六七八九十冬腊"
-    DAY_NAMES = [None] + ['初' + i for i in "一二三四五六七八九十"] + \
-        ['十' + i for i in "一二三四五六七八九"] + \
-        ['二十'] + ['廿' + i for i in "一二三四五六七八九"] + \
-        ['三十']
-    WEEKDAY_NAMES = ['星期' + dayname for dayname in "一二三四五六日"]
-    GAP_NAMES = ['今天', '明天', '后天', '大后天', '四天后', '五天后']
-    HOLIDAY_NAMES = {
-        'National Day': '国庆节',
-        'Labour Day': '劳动节',
-        "New Year's Day": '元旦',
-        'Tomb-sweeping Day': '清明节',
-        'Spring Festival': '春节',
-        'Dragon Boat Festival': '端午节',
-        'Mid-autumn Festival': '中秋节',
-    }
-    
-    def lunardate_to_str(lunardate):
-        ans = ''
-        for y in str(lunardate.year):
-            y = int(y)
-            ans += YEAR_NUMBERS[y]
-        ans += "年"
-        ans += MONTH_NUMBERS[lunardate.month] + "月"
-        ans += DAY_NAMES[lunardate.day]
-        return ans
-
-    
-    today = datetime.datetime.now()
-    lunardate1 = lunardate.LunarDate.fromSolarDate(today.year, today.month, today.day)
-    
-    weekday = today.weekday()
-    aaa = ""
-    aaa += str(today.strftime("%Y-%m-%d")) + str(WEEKDAY_NAMES[weekday])+"\n"
-    aaa += "阴历：" + lunardate_to_str(lunardate1) +"\n"
-    
-    aaa += ("""%s好，打工人，工作再累，一定不要忘记摸鱼哦！
-有事没事起身去 茶水间/厕所/走廊 走一走，久坐不利于身心健康，钱是老板的，但命是自己的\n
-    """ % ("下午" if today.hour >= 12 else "上午"))
-
-    weekend_gap = max(5 - weekday, 0)
-    aaa += (GAP_NAMES[weekend_gap] + "周末\n")
-    
-    holidays = chinese_calendar.get_holidays(today, datetime.date(today.year, 12, 31))
-    holiday_gaps = {}
-    for holiday in holidays:
-        _, holiday_name = chinese_calendar.get_holiday_detail(holiday)
-        if holiday_name is not None:
-            holiday_name = HOLIDAY_NAMES[holiday_name]
-            if holiday_name not in holiday_gaps:
-                holiday_gaps[holiday_name] = max((holiday - today.date()).days - 1, 0)
-                
-                
-    haveHoliday = False
-    for holiday_name in holiday_gaps:
-        haveHoliday = True
-        aaa += ('距离' + holiday_name+ '假期还有' + str(holiday_gaps[holiday_name]) + '天\n')
-    
-    if haveHoliday == False:
-        aaa1 = max((datetime.date(today.year+1, 1, 1) - today.date()).days - 1, 0)
-        aaa += ('距离元旦假期还有'+ str(aaa1) + '天\n')
-        
-        
-    return aaa
-
-#--------------------------------------------------------------------------------------
 
 
 
@@ -988,8 +914,6 @@ def generate(something: str) -> str:
 
 #------------------------------混乱#------------------------------
 def transYin(x, y, aaa):
-    if random.random() > aaa:
-        return x
     if x in {',', '，', '。'}:
         return '?'
     if x in {'!', '！', ' '}:
@@ -1201,6 +1125,133 @@ def GPBT(strWords):
 
 
 
+def AIXXX(context):
+    RUN_DEVICE = 'cpu' # gpu 或 dml 或 cpu
+    MODEL_NAME = 'model/wangwen-2022-01-09' # 模型名
+    WORD_NAME = 'model/wangwen-2022-01-09' # 这个也修改
+    NUM_OF_RUNS = 1 # 写多少遍
+    LENGTH_OF_EACH = 200 # 每次写多少字
+    top_p = 0.8 # 这个的范围是 0 到 1。越大，变化越多。越小，生成效果越规矩。自己试试 0 和 0.5 和 1.0 的效果就知道了
+    top_p_newline = 0.9
+    
+    
+    ctx_len = 512
+    n_layer = 12
+    n_head = 12
+    n_embd = n_head * 64
+    n_attn = n_embd
+    n_ffn = n_embd
+
+    print("输入=====>" + context)
+    context = context.strip().split('\n')
+    for c in range(len(context)):
+        context[c] = context[c].strip().strip('\u3000')
+    context = '\n' + ('\n'.join(context)).strip()
+    #print('您输入的开头有 ' + str(len(context)) + ' 个字。注意，模型只会看最后 ' + str(ctx_len) + ' 个字。')
+
+    with open(WORD_NAME + '.json', "r", encoding="utf-16") as result_file:
+        word_table = json.load(result_file)   
+
+    vocab_size = len(word_table)
+
+    train_dataset = lambda: None
+    train_dataset.stoi = {v: int(k) for k, v in word_table.items()}
+    train_dataset.itos = {int(k): v for k, v in word_table.items()}
+    UNKNOWN_CHAR = train_dataset.stoi['\ue083']
+
+    #print(f'\nLoading model for {RUN_DEVICE}...', end=' ')
+    if RUN_DEVICE == 'dml':
+        import onnxruntime as rt
+        sess_options = rt.SessionOptions()
+        sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_ALL
+        sess_options.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
+        sess_options.enable_mem_pattern = False
+        rt_session = rt.InferenceSession(MODEL_NAME + '.onnx', sess_options=sess_options, providers=['DmlExecutionProvider'])
+        rt_session.set_providers(['DmlExecutionProvider'])
+    else:
+        model = GPT(GPTConfig(vocab_size, ctx_len, n_layer=n_layer, n_head=n_head, n_embd=n_embd, n_attn=n_attn, n_ffn=n_ffn))
+        m2 = torch.load(MODEL_NAME + '.pth', map_location='cpu').state_dict()
+        for i in range(n_layer):
+            prefix = f'blocks.{i}.attn.'
+            time_w = m2[prefix + 'time_w']
+            time_alpha = m2[prefix + 'time_alpha']
+            time_beta = m2[prefix + 'time_beta']
+            mask = m2[prefix + 'mask']
+        
+            TT = ctx_len
+            T = ctx_len
+            w = F.pad(time_w, (0, TT))
+            w = torch.tile(w, [TT])
+            w = w[:, :-TT].reshape(-1, TT, 2 * TT - 1)
+            w = w[:, :, TT-1:]
+            w = w[:, :T, :T] * time_alpha[:, :, :T] * time_beta[:, :T, :]
+            w = w.masked_fill(mask[:T, :T] == 0, 0)    
+        
+            m2[prefix + 'time_ww'] = w
+            del m2[prefix + 'time_w']
+            del m2[prefix + 'time_alpha']
+            del m2[prefix + 'time_beta']
+            del m2[prefix + 'mask']    
+        if RUN_DEVICE == 'gpu':
+            model = model.cuda()
+        model.load_state_dict(m2)
+
+    #print('done:', MODEL_NAME, '&', WORD_NAME)
+
+    ##############################################################################
+    
+    strAllResult = ""
+    for run in range(NUM_OF_RUNS):
+
+        x = np.array([train_dataset.stoi.get(s, UNKNOWN_CHAR) for s in context], dtype=np.int64)
+
+        real_len = len(x)
+        print_begin = 0
+    
+    
+        for i in range(LENGTH_OF_EACH):
+
+            if i == 0:
+    
+                #print(('-' * 60) + '\n' + context.replace('\n', '\n  ').strip('\n'), end = '')
+                strAllResult += ('-' * 60) + '\n' + context.replace('\n', '\n  ').strip('\n')
+                print_begin = real_len
+
+            with torch.no_grad():
+                if RUN_DEVICE == 'dml':
+                    if real_len < ctx_len:
+                        xxx = np.pad(x, (0, ctx_len - real_len))
+                    else:
+                        xxx = x
+                    out = rt_session.run(None, {rt_session.get_inputs()[0].name: [xxx[-ctx_len:]]})
+                    out = torch.tensor(out[0])
+                else:
+                    xxx = torch.tensor(x[-ctx_len:], dtype=torch.long)[None,...]
+                    if RUN_DEVICE == 'gpu':
+                        xxx = xxx.cuda()
+                    out, _ = model(xxx)            
+                out[:, :, UNKNOWN_CHAR] = -float('Inf')
+            pos = -1 if real_len >= ctx_len else real_len - 1
+
+            if train_dataset.itos[int(x[real_len-1])] == '\n':
+                char = src.utils.sample_logits(out, pos, temperature=1.0, top_p=top_p_newline)
+            else:
+                char = src.utils.sample_logits(out, pos, temperature=1.0, top_p=top_p)
+    
+            x = np.append(x, char)
+            real_len += 1
+    
+            if i % 10 == 9 or i == LENGTH_OF_EACH-1 or i < 10 or RUN_DEVICE != 'gpu':
+                completion = ''.join([train_dataset.itos[int(i)] for i in x[print_begin:real_len]])
+                strAllResult += completion.replace('\n', '\n  ')
+                #print(completion.replace('\n', '\n  '), end = '', flush=True)
+                print_begin = real_len
+            
+    print("结果===>"+strAllResult)
+    return strAllResult
+
+
+
 
 
 
@@ -1372,6 +1423,7 @@ action = Action(bot, queue=False)
 
 bOpenThisBOT = True
 dataCiliGroupData = {}
+dataSetuGroupData = {}
 
 nAAAAAAAA = 91
 
@@ -1409,7 +1461,7 @@ def maijiaxiu(urlTB):
 
 # clclc---------------------------------------------------------------------------------
 def ciliSou(strSearch, nmmm):
-    urlss = "https://zhaobt500.xyz/s.php?q=" + strSearch
+    urlss = "https://zhaocili307.xyz/s.php?q=" + strSearch
     strText = requests.get(urlss).text
     strTemp11 = strText
 
@@ -1926,18 +1978,27 @@ def chatAI(text='hello'):
 
 
 
+#-- yuban10703 -------------------------------------------------------------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
+def getYubanPic(tags, pon = "0"):
+    try:
+        #0:safe,1:nos,2:all
+        api_url = 'https://setu.yuban10703.xyz/setu?r18='+ str(pon) +'&num=1&tags=' + tags
+        #data = {'r18': 0, 'num': 1, "tags":[]}
+        req = requests.get(api_url).text
+        if(json.loads(req)["detail"] and json.loads(req)["detail"][0] == "色"):
+            return json.loads(req)["detail"]
+        else:
+            datas = json.loads(req)["data"]
+            dataatata = datas[0]
+            picOriginalUrl=dataatata["urls"]["original"]
+            picLargeUrl = dataatata["urls"]["large"].replace("_webp", "").replace("i.pximg.net", "i.pixiv.re")
+            picMediumUrl = dataatata["urls"]["medium"].replace("_webp", "").replace("i.pximg.net", "i.pixiv.re")
+            picOriginalUrl_Msg = dataatata["urls"]["original"].replace("i.pximg.net", "i.pixiv.re")
 
-
-
-
-
-
-
-
-
-
-
-
+            #print("//////====>picOriginalUrl_Msg=> " + str(picMediumUrl))
+            return picOriginalUrl_Msg
+    except Exception as e:
+        return "获取图片出错===>" + str (e)+" tags "+tags+" pn "+pon
 
 #----------------RECIVE-------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
 @bot.on_group_msg
@@ -1945,6 +2006,7 @@ def chatAI(text='hello'):
 def receive_group_msg(ctx: GroupMsg):
     global bOpenThisBOT
     global dataCiliGroupData
+    global dataSetuGroupData
     global nReciveTimes
     
     global bGameStarted
@@ -1962,9 +2024,15 @@ def receive_group_msg(ctx: GroupMsg):
     nReciveTimes = nReciveTimes + 1
     #logger.success('nReciveTimes= ' + str(nReciveTimes))
     
-    if random.random() < 0:
-        re = chs2yin(strCont, 0)
-        action.send_group_text_msg(ctx.FromGroupId, re)
+    if random.random() < 0.0001:
+        reeee = chs2yin(strCont, 0)
+        action.send_group_text_msg(ctx.FromGroupId, reeee)
+
+    if strCont.startswith("发病"):
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        if len(args) == 2:
+            re222 = chs2yin(args[1], 0)
+            action.send_group_text_msg(ctx.FromGroupId, re222)
 
     if strCont == "关闭磁力" and ctx.FromUserId == 1973381512:
         dataCiliGroupData[strGID] = False
@@ -1973,6 +2041,15 @@ def receive_group_msg(ctx: GroupMsg):
     if strCont == "开启磁力" and ctx.FromUserId == 1973381512:
         dataCiliGroupData[strGID] = True
         action.send_group_text_msg(ctx.FromGroupId, "本群磁力已开启", ctx.FromUserId)
+
+    if strCont == "关闭色图" and ctx.FromUserId == 1973381512:
+        dataSetuGroupData[strGID] = False
+        action.send_group_text_msg(ctx.FromGroupId, "本群色图已关闭", ctx.FromUserId)
+
+    if strCont == "开启色图" and ctx.FromUserId == 1973381512:
+        dataSetuGroupData[strGID] = True
+        action.send_group_text_msg(ctx.FromGroupId, "本群色图已开启", ctx.FromUserId)
+
 
 #clici
     if strCont.startswith("磁力搜"):
@@ -1996,6 +2073,28 @@ def receive_group_msg(ctx: GroupMsg):
             strRRqq = ciliSou(strSs, nMMM)
             action.send_group_text_msg(ctx.FromGroupId, strRRqq)
 
+#AIAI 
+    if strCont.startswith("小说续写"):
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        if len(args) == 2:
+            action.send_group_text_msg(ctx.FromGroupId, "好的,我正在构思")
+            strSsss = args[1]
+            strres = AIXXX(strSsss)
+            action.send_group_text_msg(ctx.FromGroupId, strres)
+        else:
+            action.send_group_text_msg(ctx.FromGroupId, "输入错误!!!!!!")
+
+#垃圾分类============================================================================
+    if strCont.startswith("垃圾分类"):
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        if len(args) >= 2:
+            asdas = args[1]
+            strUUUDDD = "https://api.vvhan.com/api/la.ji?lj=" + asdas
+            res = requests.get(strUUUDDD).text
+            #print("asdasda===>" + res)
+            jsjsjs = json.loads(res)
+            strRRqq123 = "这个垃圾=> "+asdas+" " + jsjsjs["sort"]
+            action.send_group_text_msg(ctx.FromGroupId, strRRqq123)
 
 #PORNHUB PIC---------------------------------------------------------------------------------------
     if strCont.startswith("ph ") or strCont.startswith("作图 ") or strCont.startswith("做图 "):
@@ -2010,7 +2109,7 @@ def receive_group_msg(ctx: GroupMsg):
         picBase64Buf = func(left, right)
         action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", picBase64Buf, "", timeout=15)
 # WIKI------------------------------------------
-    elif strCont.startswith("找梗 ") or strCont.startswith("百度一下 ") or strCont.startswith("梗 "):
+    if strCont.startswith("找梗 ") or strCont.startswith("百度一下 ") or strCont.startswith("梗 "):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
             jikidata = jkjk.check(args[1])
@@ -2019,7 +2118,7 @@ def receive_group_msg(ctx: GroupMsg):
             else:
                 action.send_group_text_msg(ctx.FromGroupId, "\n"+"查询错误 ERROR 机器人即将爆炸!!!!!!!!!!!!", ctx.FromUserId)
 # QR CODE------------------------------
-    elif strCont.startswith("二维码制作 ") or strCont.startswith("qr "):
+    if strCont.startswith("二维码制作 ") or strCont.startswith("qr "):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
             index = random.randint(1, 40)
@@ -2040,7 +2139,7 @@ def receive_group_msg(ctx: GroupMsg):
 
 
 # 摩斯 CODE------------------------------
-    elif strCont.startswith("摩斯码 ") or strCont.startswith("ms "):
+    if strCont.startswith("摩斯码 ") or strCont.startswith("ms "):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
             strWords = args[1]
@@ -2054,7 +2153,7 @@ def receive_group_msg(ctx: GroupMsg):
 
 
 # 加密通话 ------------------------------
-    elif strCont.startswith("解密 ") or strCont.startswith("解谜 ") or strCont.startswith("翻译翻译 "):
+    if strCont.startswith("解密 ") or strCont.startswith("解谜 ") or strCont.startswith("翻译翻译 "):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
             strWords = args[1]
@@ -2065,7 +2164,7 @@ def receive_group_msg(ctx: GroupMsg):
                 action.send_group_text_msg(ctx.FromGroupId, "解密 Error", ctx.FromUserId)
         else:
            action.send_group_text_msg(ctx.FromGroupId, "\n"+"输入错误!!!!!!!!!!!!", ctx.FromUserId)
-    elif strCont.find("买家秀") > -1:
+    if strCont.find("买家秀") > -1:
         indexInt = random.randint(1, 6)
         taobaoUrl = "https://api.uomg.com/api/rand.img3"
         if indexInt == 1:
@@ -2081,8 +2180,8 @@ def receive_group_msg(ctx: GroupMsg):
             encodestr = base64.b64encode(data) # 得到 byte 编码的数据
             action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", encodestr, "", timeout=15)       
         
-    elif strCont.find("幻影坦克") > -1:
-        taobaoUrl = "https://api.uomg.com/api/rand.img3?sort=七了个三"
+    if strCont.find("幻影坦克") > -1:
+        taobaoUrl = getYubanPic("")
         maijiaxiu(taobaoUrl)
         f1 = 'tttkkk.png'  # 上层
         f2 = 'MJX.png'  # 下层
@@ -2092,13 +2191,13 @@ def receive_group_msg(ctx: GroupMsg):
             action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", base64_str, "", timeout=15)
         except:
             action.send_group_text_msg(ctx.FromGroupId, "\n"+"合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
-    elif strCont.find("讲个笑话") > -1:
+    if strCont.find("讲个笑话") > -1:
         urlll = "https://api.ghser.com/xiaohua"
         res = requests.get(urlll)
         #print("===>"+res.text)
         action.send_group_text_msg(ctx.FromGroupId, res.text)
         
-    elif strCont.find("狗屁不通") > -1:
+    if strCont.find("狗屁不通") > -1:
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
             strWords = args[1]
@@ -2106,7 +2205,7 @@ def receive_group_msg(ctx: GroupMsg):
             action.send_group_text_msg(ctx.FromGroupId, aaa)
             
             
-    elif strCont.startswith("绝绝子") > -1:
+    if strCont.startswith("绝绝子") > -1:
         do = strCont[3:].strip()
         try:
             sentence = generate(do)
@@ -2140,7 +2239,7 @@ def receive_group_msg(ctx: GroupMsg):
                 action.send_group_text_msg(ctx.FromGroupId, "输入多了!! 比如回复 继续游戏 1")
         else:
             action.send_group_text_msg(ctx.FromGroupId, "游戏未开始, 请回复 开始流浪")
-    if strCont == "结束游戏" and bGameStarted == True:
+    elif strCont == "结束游戏" and bGameStarted == True:
         bGameStarted = False
         action_stack = [[]]
         status = {
@@ -2196,7 +2295,8 @@ def receive_group_msg(ctx: GroupMsg):
                             strResult = mt.printShow()
                             strResult += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + str(mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
                         action.send_group_text_msg(ctx.FromGroupId, strResult)
-                except:
+                except error:
+                    print("输入数字错误输入数字错误" + str(error))
                     action.send_group_text_msg(ctx.FromGroupId, "输入数字错误! 比如回复 继续扫雷 1,2")
             else:
                 action.send_group_text_msg(ctx.FromGroupId, "输入错了!! 比如回复 继续扫雷 1,2")
@@ -2206,14 +2306,13 @@ def receive_group_msg(ctx: GroupMsg):
         bSaoLeiStart = False
         action.send_group_text_msg(ctx.FromGroupId, "扫雷关闭")
     if strCont.find("摸鱼") > -1:
-        vvv = MOYU()
-        action.send_group_text_msg(ctx.FromGroupId, vvv)
+        a = 1
     if strCont.find("蟑螂") > -1:
         zlzl = random_cockroach()
         action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", zlzl, "", timeout=15)
             
     if strCont.startswith("@jj-姬器人"):
-        if strCont.find("说说") > -1:
+        if strCont.find("说说") > -1 or strCont.find("喊一声") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 vocccPath = text_to_speech(args[2])
@@ -2224,42 +2323,111 @@ def receive_group_msg(ctx: GroupMsg):
                 action.send_group_voice_msg(ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             else:
                 action.send_group_text_msg(ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
-        
+
+    if strCont.startswith("来张美图")  or strCont.startswith("来张色图") or strCont.startswith("来张图"):
+        #print("????????????" + strCont)#
+        bbbst = False
+        try:
+            bbbst = dataSetuGroupData[strGID]
+        except :
+            bbbst = False
+        if bbbst == False:
+            action.send_group_text_msg(ctx.FromGroupId, "图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
+            return 1
+
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        aaa = 0
+        if len(args) == 1:
+            aaa = getYubanPic("")
+        elif len(args) == 2:
+            aaa = getYubanPic(args[1], "0")
+        elif len(args) == 3:
+            aaa = getYubanPic(args[1], args[2])
+            
+        if aaa[0] != "h":
+            action.send_group_text_msg(ctx.FromGroupId, "出错了==>"+aaa)
+        else:
+            maijiaxiu(aaa)
+            with open('./MJX.png', 'rb') as f:  # 以二进制读取图片
+                data = f.read()
+                encodestr = base64.b64encode(data) # 得到 byte 编码的数据
+                action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", encodestr, "", timeout=15)       
+
+
 
 @bot.on_group_msg
 @deco.not_botself
 @deco.only_this_msg_type('AtMsg')
 def receive_AT_group_msg(ctx: GroupMsg):
+    global dataSetuGroupData
     objCtx = json.loads(ctx.Content)
     strCont = objCtx['Content']
     atUserID = objCtx['UserID'][0]
+    strGID = str(ctx.FromGroupId)
 
     #print("#asdasda==" + str(strCont.find("菜单")))
 
     if(atUserID == 157199224):
-        if strCont.find("菜单") > -1:
+        if strCont.find("菜单") > -1 or strCont.find("帮助") > -1:
+            #发送[脱衣1 加一个图片],回复指定图片生成的AI脱衣图片(deamtime源码)=\n
+            #发送[脱衣2 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)=\n
+
             struuuu = '''
             发送[买家秀], 则回复好看的买家秀图=\n
             发送[磁力搜 搜索内容],则回复磁力链接=\n
             发送[开始流浪],则开始玩流浪汉文字游戏=\n
             发送[开始扫雷],则开始玩扫雷游戏=\n
-            发送[摸鱼],回复节假日信息=\n
             发送[蟑螂],回复随机蟑螂图=\n
             发送[狗屁不通 关键词],回复由关键词生成的狗屁不通文章=\n
             发送[讲个笑话],回复一个笑话=\n
             发送[幻影坦克],回复买家秀生成的幻影坦克图片=\n
             发送[制作幻影坦克 加两个图片],回复指定两个图片生成的幻影坦克图片=\n
-            发送[脱衣1 加一个图片],回复指定图片生成的AI脱衣图片(deamtime源码)=\n
-            发送[脱衣2 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)=\n
             发送[做图 内容],回复por...hub风格的logo=\n
             发送[百度一下 内容],回复该内容的网络信息=\n
-            发送[绝绝子 内容],回复该内容生成的神经病文学=\n
+            发送[来张图 搜索内容],回复该内容的二次元图=\n
             发送[翻译翻译 拼音缩写],就能让机器翻译内容 比如 翻译翻译 yyds, 翻译永远滴神\n
-            @机器人可以和机器人对话=\n
+            
+            只有以下两个功能需要@机器人,别的功能别自作主张@它=\n
+            @机器人  可以和机器人对话=\n
             @机器人后回复 说说+内容,就能让机器人读出内容 比如@jj-姬器人 说说 你是傻逼=\n
             '''
             action.send_group_text_msg(ctx.FromGroupId, struuuu, ctx.FromUserId)
         # 模特 ------------------------------
+        elif strCont.find("来张美图") > -1 or strCont.find("来张色图") > -1 or strCont.find("来张图") > -1:
+            bbbstat = False
+            try:
+                bbbstat = dataSetuGroupData[strGID]
+            except :
+                bbbstat = False
+            if bbbstat == False:
+                action.send_group_text_msg(ctx.FromGroupId, "AT图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
+                return 1
+
+            args = [i.strip() for i in strCont.split(" ") if i.strip()]
+            aaa = 0
+            if len(args) == 1 or len(args) == 2:
+                aaa = getYubanPic("")
+            elif len(args) == 3:
+                aaa = getYubanPic(args[2], "0")
+            elif len(args) == 4:
+                aaa = getYubanPic(args[2], args[3])
+
+            if aaa[0] != "h":
+                action.send_group_text_msg(ctx.FromGroupId, "出错了==>"+aaa)
+            else:
+                maijiaxiu(aaa)
+                with open('./MJX.png', 'rb') as f:  # 以二进制读取图片
+                    data = f.read()
+                    encodestr = base64.b64encode(data) # 得到 byte 编码的数据
+                    action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", encodestr, "", timeout=15)
+
+        elif strCont.find("隐藏功能") > -1:
+            struuuu = '''
+                        发送[脱衣 加一个图片],回复指定图片生成的AI脱衣图片(deamtime源码)\n
+                        发送[2脱衣 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)\n
+                        发送[美图 搜索内容 r18开关(0普通, 1r18, 2随机)],比如[美图 jk 1]=>回复jk的二次元r18图\n
+                        '''
+            action.send_group_text_msg(ctx.FromGroupId, struuuu, ctx.FromUserId)
         elif strCont.find("买家秀") > -1:
             indexInt = random.randint(1, 6)
             taobaoUrl = "https://api.uomg.com/api/rand.img3"
@@ -2288,7 +2456,7 @@ def receive_AT_group_msg(ctx: GroupMsg):
                 action.send_group_text_msg(ctx.FromGroupId, str222)
             else:
                 action.send_group_text_msg(ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
-        elif strCont.find("说说") > -1:
+        elif strCont.find("说说") > -1 or strCont.find("喊一声") > -1 or strCont.find("说一声") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 vocccPath = text_to_speech(args[2])
@@ -2358,10 +2526,10 @@ def receive_PIC_group_msg(ctx: GroupMsg):
             action.send_group_text_msg(ctx.FromGroupId, "\n"+"合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
         
 
-    elif strCont.startswith("脱衣1") and len(picArr) == 1:
+    elif strCont.startswith("脱衣") and len(picArr) == 1:
         nAAAAAAAA = nAAAAAAAA + 1
 
-        if strCont == "脱衣1":
+        if strCont == "脱衣":
             strUrlqq = picArr[0]["Url"]
             html = requests.get(strUrlqq)
             with open('./222111/'+ str(nAAAAAAAA) +'.png', 'wb') as file:
@@ -2424,7 +2592,7 @@ def receive_PIC_group_msg(ctx: GroupMsg):
                 
                 
                 
-    elif strCont.startswith("脱衣2") and len(picArr) == 1:
+    elif strCont.startswith("2脱衣") and len(picArr) == 1:
         nAAAAAAAA = nAAAAAAAA + 1
         strUrlqq = picArr[0]["Url"]
         html = requests.get(strUrlqq)
