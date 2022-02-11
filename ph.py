@@ -40,6 +40,32 @@ import torch.nn as nn
 from torch.nn import functional as F
 import src.utils
 from src.model import GPT, GPTConfig
+
+
+
+
+
+
+bot = IOTBOT(157199224, log=False)
+action = Action(bot, queue=True)
+
+bOpenThisBOT = True
+dataCiliGroupData = {}
+dataSetuGroupData = {}
+
+nAAAAAAAA = 91
+
+nBBBBBB = 99999
+
+
+nReciveTimes = 0
+
+
+
+
+
+
+
 #-------------------------------------------------------------
 
 def file_to_base64(path):
@@ -74,38 +100,6 @@ def text_to_speech(ai_text):
     return "asdasd.mmmm"
 
 #---------------------------------------------------------------
-
-
-base_path = './zl2.png'
-cockroach_path = './zl.png'
-
-def get_random_position(i, num):
-    row = random.randint(30, 1040)
-    col = random.randint(30, 1040)
-    return row, col
-
-
-def random_cockroach():
-    num = random.randint(70, 300)
-    base = Image.open(base_path)
-    base = base.resize((1080, 1080), Image.ANTIALIAS)    #加载底图
-    f = Image.open(cockroach_path)
-    f = f.resize((160, 160), Image.ANTIALIAS)      #加载icon
-    for i in range(0,num):
-        f = f.rotate(random.randint(1, 12) * 30)
-        row, col = get_random_position(i, num)
-        base.paste(f, (row, col), f)
-
-    buf = BytesIO()
-    base.save(buf, format='PNG')
-    return base64.b64encode(buf.getvalue()).decode()
-    #base.save('test111.png')
-
-
-
-
-
-
 
 
 
@@ -715,189 +709,7 @@ def main(ctx):
     action.send_group_text_msg(ctx.FromGroupId, str)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 mt = 0
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-data_path = "./materials.json"
-
-
-class Emotion(BaseModel):
-    emoji: List[str]
-    xiaohongshu: List[str]
-    weibo: List[str]
-
-
-class Material(BaseModel):
-    emotions: Emotion  # 表情
-    symbols: List[str]
-    auxiliaryWords: List[str]
-    dividers: List[str]  # 断句符
-    fashion: List[str]  # 潮流
-    attribute: List[str]  # 定语
-
-    beginning: List[str]  # 开头
-    ending: List[str]  # 结尾
-    who: List[str]  # 主语
-    someone: List[str]  # 和/跟谁
-
-    todosth: List[str]  # 干什么
-    another: List[str]  # 扯另一个淡
-    collections: List[str]  # 一些固定搭配
-    default: List[str]  # 默认 something
-
-
-material = Material.parse_file(data_path)
-
-
-class Random:
-    @staticmethod
-    def word(words: List[str], nullable=False, divier="") -> str:
-        word = random.choice(
-            [*words, *([""] * (nullable and int(len(words) / 3) or 0))]
-        )
-        if word:
-            return word + divier
-        return ""
-
-    @staticmethod
-    def word_not_contain(words: List[str], already: str) -> str:
-        word = Random.word(words)
-
-        word_set = set(word.replace(" ", ""))
-        already_set = set(already.replace(" ", ""))
-
-        if len(word_set & already_set) == 0:
-            return word
-
-        return Random.word_not_contain(words, already)
-
-    @staticmethod
-    def words(words_: List[str], count: int) -> List[str]:
-        if len(words_) >= count:
-            words_ = words_.copy()
-            random.shuffle(words_)
-        return words_[:count]
-
-    @staticmethod
-    def repeat(word: str, times: int = -1) -> str:
-        if times > 0:
-            return word * times
-
-        num = random.randint(1, 3)
-        if num == 2:
-            return ""
-        return word * num
-
-
-def generate_beginning(divider: str):
-    beginning = (
-        Random.word(material.beginning)
-        .replace("who", Random.word(material.who))
-        .replace("someone", Random.word(material.someone))
-    )
-    emotion = Random.word(material.emotions.emoji, True)
-    return beginning + emotion + divider
-
-
-def generate_dosth(something: str, divider: str):
-    todosth = Random.word(material.todosth).replace(" ", "").replace("dosth", something)
-    emotion = Random.repeat(Random.word(material.emotions.emoji))
-    return todosth + emotion + divider
-
-
-def praise_sth(something: str, praised_words: List[str], has_also=False) -> str:
-    praise_word = Random.word(praised_words)
-
-    verb, noun = something.split(" ")[:2]
-
-    intro = Random.word(["这家的", "这家店的", "这个", "这件", "这杯"])
-    also = has_also and "也" or ""
-
-    praise_word.replace("dosth", verb)
-
-    return intro + noun + also + praise_word
-
-
-def generate(something: str) -> str:
-    divider = Random.word(material.dividers)
-
-    fashion_words = Random.words(material.fashion, len(material.fashion))
-
-    first = generate_beginning(divider)
-    second = fashion_words[0] + divider
-    third = generate_dosth(something, divider)
-    forth = fashion_words[1] + divider
-    fifth = Random.repeat(Random.word(material.auxiliaryWords), 3) + divider
-    sixth = praise_sth(something, material.attribute) + Random.repeat(
-        Random.word(material.symbols), 3
-    )
-    seventh = praise_sth(
-        Random.word_not_contain(material.another, something), material.attribute, True
-    ) + Random.repeat(Random.word(material.symbols), 3)
-    eighth = fashion_words[2] + divider
-    ninth = (
-        Random.word(material.collections, True, divider) + fashion_words[3] + divider
-    )
-    tenth = Random.repeat(Random.word(material.auxiliaryWords), 3) + divider
-    last = Random.word(material.ending) + Random.word(material.emotions.emoji)
-
-    return (
-        first
-        + second
-        + third
-        + forth
-        + fifth
-        + sixth
-        + seventh
-        + eighth
-        + ninth
-        + tenth
-        + last
-    )
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1142,7 +954,7 @@ def AIXXX(context):
     n_attn = n_embd
     n_ffn = n_embd
 
-    print("输入=====>" + context)
+    #print("输入=====>" + context)
     context = context.strip().split('\n')
     for c in range(len(context)):
         context[c] = context[c].strip().strip('\u3000')
@@ -1214,7 +1026,7 @@ def AIXXX(context):
             if i == 0:
     
                 #print(('-' * 60) + '\n' + context.replace('\n', '\n  ').strip('\n'), end = '')
-                strAllResult += ('-' * 60) + '\n' + context.replace('\n', '\n  ').strip('\n')
+                strAllResult += '\n' + context.replace('\n', '\n  ').strip('\n')
                 print_begin = real_len
 
             with torch.no_grad():
@@ -1247,7 +1059,7 @@ def AIXXX(context):
                 #print(completion.replace('\n', '\n  '), end = '', flush=True)
                 print_begin = real_len
             
-    print("结果===>"+strAllResult)
+    #print("结果===>"+strAllResult)
     return strAllResult
 
 
@@ -1418,20 +1230,12 @@ def to_unicode(check_str):
     return ret
 
 
-bot = IOTBOT(157199224, log=False)
-action = Action(bot, queue=False)
-
-bOpenThisBOT = True
-dataCiliGroupData = {}
-dataSetuGroupData = {}
-
-nAAAAAAAA = 91
-
-nBBBBBB = 99999
 
 
-nReciveTimes = 0
 
+
+
+#---------------------------------------------------------------------------------
 
 LEFT_PART_VERTICAL_BLANK_MULTIPLY_FONT_HEIGHT = 2
 LEFT_PART_HORIZONTAL_BLANK_MULTIPLY_FONT_WIDTH = 1 / 4
@@ -2203,17 +2007,7 @@ def receive_group_msg(ctx: GroupMsg):
             strWords = args[1]
             aaa = GPBT(strWords)
             action.send_group_text_msg(ctx.FromGroupId, aaa)
-            
-            
-    if strCont.startswith("绝绝子") > -1:
-        do = strCont[3:].strip()
-        try:
-            sentence = generate(do)
-            #action.send_group_text_msg(ctx.FromGroupId, sentence)
-        except:
-            a=0
-            
-            
+
             
     if strCont == "开始流浪":
         if bGameStarted == False:
@@ -2305,12 +2099,7 @@ def receive_group_msg(ctx: GroupMsg):
     if strCont == "gg":
         bSaoLeiStart = False
         action.send_group_text_msg(ctx.FromGroupId, "扫雷关闭")
-    if strCont.find("摸鱼") > -1:
-        a = 1
-    if strCont.find("蟑螂") > -1:
-        zlzl = random_cockroach()
-        action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", zlzl, "", timeout=15)
-            
+        
     if strCont.startswith("@jj-姬器人"):
         if strCont.find("说说") > -1 or strCont.find("喊一声") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2369,24 +2158,21 @@ def receive_AT_group_msg(ctx: GroupMsg):
 
     if(atUserID == 157199224):
         if strCont.find("菜单") > -1 or strCont.find("帮助") > -1:
-            #发送[脱衣1 加一个图片],回复指定图片生成的AI脱衣图片(deamtime源码)=\n
-            #发送[脱衣2 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)=\n
-
+            
             struuuu = '''
             发送[买家秀], 则回复好看的买家秀图=\n
             发送[磁力搜 搜索内容],则回复磁力链接=\n
             发送[开始流浪],则开始玩流浪汉文字游戏=\n
             发送[开始扫雷],则开始玩扫雷游戏=\n
-            发送[蟑螂],回复随机蟑螂图=\n
             发送[狗屁不通 关键词],回复由关键词生成的狗屁不通文章=\n
             发送[讲个笑话],回复一个笑话=\n
             发送[幻影坦克],回复买家秀生成的幻影坦克图片=\n
             发送[制作幻影坦克 加两个图片],回复指定两个图片生成的幻影坦克图片=\n
-            发送[做图 内容],回复por...hub风格的logo=\n
+            发送[做图 内容1 内容2],回复por...hub风格的logo=\n
             发送[百度一下 内容],回复该内容的网络信息=\n
             发送[来张图 搜索内容],回复该内容的二次元图=\n
             发送[翻译翻译 拼音缩写],就能让机器翻译内容 比如 翻译翻译 yyds, 翻译永远滴神\n
-            
+            发送[小说续写 开头内容],就能让机器续写之后的内容, 比如 小说续写 群主挂了之后\n
             只有以下两个功能需要@机器人,别的功能别自作主张@它=\n
             @机器人  可以和机器人对话=\n
             @机器人后回复 说说+内容,就能让机器人读出内容 比如@jj-姬器人 说说 你是傻逼=\n
@@ -2526,7 +2312,7 @@ def receive_PIC_group_msg(ctx: GroupMsg):
             action.send_group_text_msg(ctx.FromGroupId, "\n"+"合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
         
 
-    elif strCont.startswith("脱衣") and len(picArr) == 1:
+    elif strCont.startswith("333444111脱衣") and len(picArr) == 1:
         nAAAAAAAA = nAAAAAAAA + 1
 
         if strCont == "脱衣":
@@ -2574,35 +2360,19 @@ def receive_PIC_group_msg(ctx: GroupMsg):
                     
             else:
                 action.send_group_text_msg(ctx.FromGroupId, "参数少了!需要: 脱衣 图片缩放类型 Boob大小 Ru头大小 Vagina大小 yin毛大小 是否使用原图颜色 \n 比如: 脱衣 1 1.5 1 1 0.9 1", ctx.FromUserId)
-            
-    elif strCont.startswith("放大qwe") and len(picArr) == 1:
-        nBBBBBB = nBBBBBB + 1
-        strUrlqq = picArr[0]["Url"]
-        html = requests.get(strUrlqq)
-        with open('./223/'+ str(nBBBBBB) +'.png', 'wb') as file:
-            file.write(html.content)
-            strADB = "./realesrgan-ncnn-vulkan -i 223/"+ str(nBBBBBB) +".png -o 223/" + str(nBBBBBB) + "ot.png"
-            os.system(strADB)
-            print (time.strftime("放大成功!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
-            with open("./223/"+ str(nBBBBBB) +"ot.png", 'rb') as f:  # 以二进制读取图片
-                data = f.read()
-                encodestr = base64.b64encode(data) # 得到 byte 编码的数据
-                action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", encodestr, "", timeout=15)
                 
                 
-                
-                
-    elif strCont.startswith("2脱衣") and len(picArr) == 1:
+    elif strCont.startswith("脱衣") and len(picArr) == 1:
         nAAAAAAAA = nAAAAAAAA + 1
         strUrlqq = picArr[0]["Url"]
         html = requests.get(strUrlqq)
-        with open('./NUD/'+ str(nAAAAAAAA) +'.png', 'wb') as file:
+        with open('./'+ str(nAAAAAAAA) +'.png', 'wb') as file:
             file.write(html.content)
             
-            strADB = "python3 main.py -i ./NUD/"+ str(nAAAAAAAA) +'.png -o ./NUD/' + str(nAAAAAAAA) +'_ot.png'
+            strADB = "python3 main.py -i "+ str(nAAAAAAAA) +'.png -o output_' + str(nAAAAAAAA) +'.png'
             os.system(strADB)
             
-            with open("./NUD/"+ str(nAAAAAAAA) +"_ot.png", 'rb') as f:  # 以二进制读取图片
+            with open("./output_"+ str(nAAAAAAAA) +".png", 'rb') as f:  # 以二进制读取图片
                 data = f.read()
                 encodestr = base64.b64encode(data) # 得到 byte 编码的数据
                 action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", encodestr, "", timeout=15)
@@ -2613,6 +2383,7 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 def disconnected():
     o=0
     #logger.warning('socket断开~')
+    #bot.run()
 
 
 @bot.when_connected(every_time=True)
@@ -2623,5 +2394,9 @@ def connected():
     
 if __name__ == '__main__':
     # ---------------------------------------------------------------------------------
+    print("qidong")
     bot.run()
+    
+
+
 
