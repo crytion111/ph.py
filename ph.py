@@ -46,7 +46,7 @@ from src.model import GPT, GPTConfig
 
 
 
-bot = IOTBOT(157199224, log=False)
+bot = IOTBOT(自己QQ号, log=False)
 action = Action(bot, queue=False)
 
 bOpenThisBOT = True
@@ -70,9 +70,9 @@ def file_to_base64(path):
     return base64.b64encode(content).decode()
 
 # 百度语音 API
-APP_ID = '25419425'
-API_KEY = 'fct6UMiQMLsp53MqXzp7AbKQ'
-SECRET_KEY = 'p3wU9nPnfR7iBz2kM25sikN2ms0y84T3'
+APP_ID = '百度语音 API'
+API_KEY = '百度语音 API'
+SECRET_KEY = '百度语音 API'
 
 client = AipSpeech(APP_ID,API_KEY,SECRET_KEY)
 
