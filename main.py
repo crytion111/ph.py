@@ -34,9 +34,9 @@ def main(inputpath, outpath, show):
 				open_file("output_"+item)
 	else:
 		watermark = deep_nude_process(inputpath)
-		cv2.imwrite(outputpath, watermark)
+		cv2.imwrite(outpath, watermark)
 		if automatic_show_image:
-			open_file(outputpath)
+			open_file(outpath)
 
 def deep_nude_process(item):
     print('Processing {}'.format(item))
@@ -56,5 +56,7 @@ if __name__ == '__main__':
 	inputpath, outputpath, show = parser.parse_args().input, parser.parse_args().output, parser.parse_args().show
     
 	print (time.strftime("START!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
+	ipipip = inputpath[0]
+	opopop = outputpath[0]
 	main(inputpath, outputpath, show)
 	print (time.strftime("FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))

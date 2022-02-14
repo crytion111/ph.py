@@ -46,21 +46,17 @@ from src.model import GPT, GPTConfig
 
 
 
-bot = IOTBOT("机器人的QQ号", log=False)
-action = Action(bot, queue=True)
+bot = IOTBOT(157199224, log=False)
+action = Action(bot, queue=False)
 
 bOpenThisBOT = True
 dataCiliGroupData = {}
 dataSetuGroupData = {}
-
 nAAAAAAAA = 91
-
 nBBBBBB = 99999
-
-
 nReciveTimes = 0
 
-
+nXXXCount = 0
 
 
 
@@ -74,9 +70,9 @@ def file_to_base64(path):
     return base64.b64encode(content).decode()
 
 # 百度语音 API
-APP_ID = '自己创建'
-API_KEY = '自己创建'
-SECRET_KEY = '自己创建'
+APP_ID = '25419425'
+API_KEY = 'fct6UMiQMLsp53MqXzp7AbKQ'
+SECRET_KEY = 'p3wU9nPnfR7iBz2kM25sikN2ms0y84T3'
 
 client = AipSpeech(APP_ID,API_KEY,SECRET_KEY)
 
@@ -1818,6 +1814,7 @@ def receive_group_msg(ctx: GroupMsg):
     global action_stack
     global status
     global mt
+    global nXXXCount
 
 
     strGID = str(ctx.FromGroupId)
@@ -1878,13 +1875,19 @@ def receive_group_msg(ctx: GroupMsg):
             action.send_group_text_msg(ctx.FromGroupId, strRRqq)
 
 #AIAI 
-    if strCont.startswith("小说续写"):
+    if strCont.startswith("小说续写123"):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
-            action.send_group_text_msg(ctx.FromGroupId, "好的,我正在构思")
-            strSsss = args[1]
-            strres = AIXXX(strSsss)
-            action.send_group_text_msg(ctx.FromGroupId, strres)
+            nXXXCount += 1
+            if(nXXXCount > 1):
+                action.send_group_text_msg(ctx.FromGroupId, "任务太多,等等等再试试!!!!!!")
+                nXXXCount -= 1
+            else:
+                action.send_group_text_msg(ctx.FromGroupId, "好的,我正在构思")
+                strSsss = args[1]
+                strres = AIXXX(strSsss)
+                action.send_group_text_msg(ctx.FromGroupId, strres)
+                nXXXCount -= 1
         else:
             action.send_group_text_msg(ctx.FromGroupId, "输入错误!!!!!!")
 
@@ -2289,7 +2292,7 @@ def receive_PIC_group_msg(ctx: GroupMsg):
     
 
     nIndex = 1
-    if strCont == "制作幻影坦克" and len(picArr) == 2:
+    if strCont.find("幻影坦克") > -1 and len(picArr) == 2:
 
         for i in picArr:
             strUrlqq = i["Url"]
@@ -2305,6 +2308,8 @@ def receive_PIC_group_msg(ctx: GroupMsg):
         f1 = '11.png'  # 上层
         f2 = '2.png'  # 下层
         savePath = r'T1.png'  # 保存路径
+        #base64_str = make(f1, f2, savePath)
+        #action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", base64_str, "", timeout=15)
         try:
             base64_str = make(f1, f2, savePath)
             action.send_group_pic_msg(ctx.FromGroupId, "", False, ctx.FromUserId, "OK!!!!", base64_str, "", timeout=15)
@@ -2382,14 +2387,14 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 @bot.when_disconnected(every_time=True)
 def disconnected():
     o=0
-    #logger.warning('socket断开~')
+    #print('socket断开~')
     #bot.run()
 
 
 @bot.when_connected(every_time=True)
 def connected():
     o=0
-    #logger.success('socket连接成功~')
+    #print('socket连接成功~')
     
     
 if __name__ == '__main__':
