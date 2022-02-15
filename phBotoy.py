@@ -1,6 +1,18 @@
 ﻿#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from bs4 import BeautifulSoup
+import urllib.error
+import urllib.request
+from src.model import GPT, GPTConfig
+import src.utils
+from torch.nn import functional as F
+import torch.nn as nn
+import torch
+from aip import AipSpeech
+from io import BytesIO
+import copy
+from pydantic import BaseModel
 from botoy import Botoy, Action, FriendMsg, GroupMsg, EventMsg
 import botoy.decorators as deco
 from retrying import retry
@@ -28,25 +40,9 @@ import numpy as np
 import jieba
 import jieba.posseg as pseg
 jieba.setLogLevel(20)
-from pydantic import BaseModel
-import copy
-from io import BytesIO
-from aip import AipSpeech
-import math, json
 
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
-import src.utils
-from src.model import GPT, GPTConfig
-
-
-
-
-
-
-bot = Botoy(qq = 机器人QQ号, log=False)
-action = Action(机器人QQ号)
+bot = Botoy(qq=157199224, log=False)
+action = Action(157199224)
 
 bOpenThisBOT = True
 dataCiliGroupData = {}
@@ -57,23 +53,88 @@ nReciveTimes = 0
 
 nXXXCount = 0
 
+session = requests.Session()
+
+wilteList = [779119500, 273590953]
+
+for x in wilteList:
+    strID = str(x)
+    dataCiliGroupData[strID] = True
+    dataSetuGroupData[strID] = True
 
 
+# -------------------------------------------------------------
+# 图片转为Base64
+def toBase64(imgUrl):
+    req = session.get(imgUrl)
+    return base64.b64encode(req.content).decode()
 
 
-#-------------------------------------------------------------
+def CheckYYYY(strB64):
+    pay_load = {
+        'api_key': "X5CYnsaJJCgMJXMPo9JGyHWfsqWx80gr",
+        'api_secret': "K1zHwlcl1RalyoLOH3vWLsouLDjPcl69",
+        'return_attributes': 'age,gender,skinstatus,beauty,smiling',
+        'image_base64': strB64
+    }
+    # image_file = {'image_url': imageurl}
+    r = requests.post(
+        "https://api-cn.faceplusplus.com/facepp/v3/detect", data=pay_load)
+    # print("+++++++++++++++++++++++++++++++++++detect_face++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    # print(img_file_path)
+    # print(r.status_code)
+    # print("====>" + r.text)
+    # print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    try:
+        r_json = json.loads(r.text)
+        if r.status_code == 200:
+            faceNum = r_json["face_num"]
+            if faceNum != 1:
+                return "暂时只能分辨一张脸"
+            else:
+                faceData = r_json["faces"][0]
+                attributes = faceData["attributes"]
+                strXB = attributes["gender"]["value"]
+                strMNMNM = "男性"
+                if strXB == "Female":
+                    strMNMNM = "女性"
+                nAge = attributes["age"]["value"]
+                skinstatus = attributes["skinstatus"]["health"]
+                dark_circle = attributes["skinstatus"]["dark_circle"]
+                butyScore = 0
+                if strXB == "Female":
+                    butyScore = attributes["beauty"]["female_score"]
+                else:
+                    butyScore = attributes["beauty"]["male_score"]
+
+                strSMsm = ""
+                if attributes["smile"]["value"] > attributes["smile"]["threshold"]:
+                    strSMsm = "正在笑,"
+                strRRRSS = "这个人是"+strMNMNM+", 年龄大概" + \
+                    str(nAge)+"岁,"+ strSMsm +" 皮肤健康度为:"+str(skinstatus) + \
+                    ',黑眼圈程度为:'+str(dark_circle) + \
+                    ' \n最终颜值评分为:'+str(butyScore)
+            return strRRRSS
+        else:
+            return "网络错误!!!!!!!!!!!!!"
+    except Exception as error:
+        return "识别错误==>" + str(error)
+
+
+# -------------------------------------------------------------
 
 def file_to_base64(path):
     with open(path, 'rb') as f:
         content = f.read()
     return base64.b64encode(content).decode()
 
-# 百度语音 API
-APP_ID = '百度语音 API'
-API_KEY = '百度语音 API'
-SECRET_KEY = '百度语音 API'
 
-client = AipSpeech(APP_ID,API_KEY,SECRET_KEY)
+# 百度语音 API
+APP_ID = '25419425'
+API_KEY = 'fct6UMiQMLsp53MqXzp7AbKQ'
+SECRET_KEY = 'p3wU9nPnfR7iBz2kM25sikN2ms0y84T3'
+
+client = AipSpeech(APP_ID, API_KEY, SECRET_KEY)
 
 
 # 文字转语音
@@ -83,29 +144,26 @@ def text_to_speech(ai_text):
         'vol': 8, 'per': 4, 'spd': 5
     })
 
-    #print("resultresultresult"+str(result))
+    # print("resultresultresult"+str(result))
 
     # 识别正确返回语音二进制 错误则返回dict 参照下面错误码
     if not isinstance(result, dict):
-        #print('识别成功')
+        # print('识别成功')
         with open('./aisay.mp3', 'wb') as f:
             f.write(result)
         return "./aisay.mp3"
-        
+
     return "asdasd.mmmm"
 
-#---------------------------------------------------------------
+# ---------------------------------------------------------------
 
 
-
-
-
-
-#--------------------------------------------------------------
-
+# --------------------------------------------------------------
 
 
 bSaoLeiStart = False
+
+
 class MineTable:
     tableLength = 8  # 多长多宽
     mineCount = 8  # 多少雷
@@ -121,7 +179,8 @@ class MineTable:
         # 多少空格
         self.allGoodCount = self.tableLength * self.tableLength - self.mineCount
         # 初始扫雷表
-        initTable = [[self.cover for _ in range(self.tableLength)] for _ in range(self.tableLength)]
+        initTable = [[self.cover for _ in range(
+            self.tableLength)] for _ in range(self.tableLength)]
         # 答案表
         self.answerTable = copy.deepcopy(initTable)
         # 记录打开标记的扫雷图   已经发现的标记为'd'=>'discover
@@ -185,7 +244,7 @@ class MineTable:
         self.getNowData()
         strShow = "xy 0, '1', '2', '3', '4', '5', '6', '7'\n"
         for i in range(self.tableLength):
-            strShow += str(i) + str(self.resultTable[i]) +"\n"
+            strShow += str(i) + str(self.resultTable[i]) + "\n"
         # 如果全部安全区都打开，就结束
         if self.openGoodCount == self.allGoodCount:
             bSaoLeiStart = False
@@ -255,48 +314,43 @@ class MineTable:
                     self.resultTable[i][j] = self.answerTable[i][j]
 
 
-
-
-
-
-
-
-
-
-
-
 bGameStarted = False
 title = '三和大神'
+
+
 def print_status(status):
     strRes = title+"" \
-                        "===========\n" \
-                        "当前资金:    " + str(status["Money"])+"\n" \
-                        "还债进度:    " + str(status["Debt"])+"/50000\n" \
-                        "当前健康:    " + str(status["HP"])+"/100\n" \
-                        "===========\n" + str(status["Message"])
-
+        "===========\n" \
+        "当前资金:    " + str(status["Money"])+"\n" \
+        "还债进度:    " + str(status["Debt"])+"/50000\n" \
+        "当前健康:    " + str(status["HP"])+"/100\n" \
+        "===========\n" + str(status["Message"])
 
     return strRes
 
+
 status = {
-    "Money":5,
-    "HP":100,
-    "Debt":50000,
-    "Message":"",
-    "ContinueWorkTime":0
-    }
+    "Money": 5,
+    "HP": 100,
+    "Debt": 50000,
+    "Message": "",
+    "ContinueWorkTime": 0
+}
+
 
 def do_once(name):
     def decorator1(func):
         def dec(*args):
             global action_stack
-            action_stack[-1] = [item for item in action_stack[-1] if item[0] != name]
+            action_stack[-1] = [item for item in action_stack[-1]
+                                if item[0] != name]
             result = func()
             return result
         return dec
     return decorator1
 
-def random_success(name,posibility,reason = None):
+
+def random_success(name, posibility, reason=None):
     def decorator1(func):
         def dec(*args):
             global action_stack
@@ -304,14 +358,16 @@ def random_success(name,posibility,reason = None):
                 result = func()
                 return result
             else:
-                status["Message"] = "很遗憾，你的"+ name + "行为遇到了惨痛的失败\n"
-                if reason != None :
+                status["Message"] = "很遗憾，你的" + name + "行为遇到了惨痛的失败\n"
+                if reason != None:
                     status["Message"] += "那是因为" + reason
                 return None
         return dec
     return decorator1
 
+
 action_stack = [[]]
+
 
 def pop_action_stack(func):
     def dec(*args):
@@ -321,8 +377,9 @@ def pop_action_stack(func):
         return result
     return dec
 
+
 def handle_input(intSelect):
-    #try:
+    # try:
     operation_index = intSelect
     action_stack[-1][operation_index][1]()
 
@@ -332,25 +389,29 @@ def reflush_screen():
     strStatus = print_status(status)
     strStatus = strStatus + "\n你可以执行以下操作\n"
 
-    for i in range(0,len(action_stack[-1])):
+    for i in range(0, len(action_stack[-1])):
         strStatus = strStatus + str(i) + str(action_stack[-1][i][0])+'\n'
     return strStatus
 
+
 is_exit = False
 
-def add_operation(name,handler):
-    action_stack[-1].append((name,handler))
+
+def add_operation(name, handler):
+    action_stack[-1].append((name, handler))
+
 
 def search_on_street():
     status["HP"] -= 2
     if random.random() < 0.2:
         status["Message"] += "你发现了一堆空瓶子！这可是能卖1块钱的！\n"
-        status["Money"]   += 1
+        status["Money"] += 1
         return
-    
+
     if random.random() < 0.4:
         status["Message"] += "你看到了一家卷帘门半拉着的洗头房，你要进去修车吗？修车一次400\n"
         action_stack.append([])
+
         @pop_action_stack
         def fix_car():
             p = random.random()
@@ -363,7 +424,7 @@ def search_on_street():
 交出了300块钱罚款之后，你终于被放了出来
                 '''
                 status["Money"] -= 300
-            else :
+            else:
                 status["Message"] = '''
 经过一阵子的努力，当那一刻来临的时候，你感觉浑身舒适，仿佛终于找到了属于男性的力量
 你回头看了看身边背对着你的失足少女，点了一根烟，然后拍了她的背影
@@ -372,7 +433,7 @@ def search_on_street():
 随后翻过身睡着了
                 '''
                 status["HP"] += 50
-        add_operation("修车",fix_car)
+        add_operation("修车", fix_car)
 
         @pop_action_stack
         def not_fix_car():
@@ -380,15 +441,16 @@ def search_on_street():
 你看了看那扇门，叹了一口气走开了。
 修车就是这个冰冷都市中的唯一爱情吗？或者也只是和盒饭一样的快餐梦幻？
                 '''
-        add_operation("算了",not_fix_car)
+        add_operation("算了", not_fix_car)
         return
-    
+
     if random.random() < 0.6:
         status["Message"] += "你发现了走在前面的那个人，屁股兜里露出来了半个iphone 6，你想试着偷窃吗\n"
         action_stack.append([])
+
         @pop_action_stack
         def steal():
-            strSTTT = ( '''
+            strSTTT = ('''
 你一把从别人的屁股兜里抽出了iphone 6.
 但是那个人立刻转过身来，想要抓住你，你转身就开始跑。
                 ''')
@@ -396,7 +458,7 @@ def search_on_street():
             while(p < 0.95):
                 p = random.random()
                 i = random.randint(0, 3)
-                if int(i) > 2 :
+                if int(i) > 2:
                     status["Message"] = strSTTT + '''
 你开始胡乱跑,由于你愚蠢地决策，你被抓住然后暴打一顿，还被送去了公安局
 等你出来的时候，你整个人都饿瘦了一圈，感到头晕眼花
@@ -423,23 +485,23 @@ def search_on_street():
             if random.random() < 0.2:
                 status["Message"] += '''
 然后再也没见他走出来，等你慌了，四处寻找，却发现没有任何他的踪影，你的手机也没了
-                    '''    
+                    '''
             else:
                 status["Message"] += '''
 过了一会儿他走了出来，递给你1500块钱
-                    '''    
+                    '''
                 status["Money"] += 1500
             status["HP"] -= 20
             return
-        add_operation("偷窃",steal)
-        
+        add_operation("偷窃", steal)
+
         @pop_action_stack
         def not_steal():
             status["Message"] = '''
 你把目光从别人的屁股后面移开，转而思考别的事情
                 '''
             return
-        add_operation("算了",not_steal)
+        add_operation("算了", not_steal)
         return
 
     if random.random() < 0.8:
@@ -452,12 +514,13 @@ def search_on_street():
                 '''
         status["Money"] += 45
         return
-        
+
     if random.random() < 1:
         status["Message"] += "翻了翻垃圾桶, 吃了点剩饭！HP+1\n"
-        status["HP"]   += 1
+        status["HP"] += 1
         return
-    
+
+
 def init(status):
     status["Message"] = '''
 欢迎游玩《三和浮尘录》，本游戏试图模拟一个三和大神的生活，从而展示另一个底层的世界
@@ -472,32 +535,32 @@ def init(status):
         当你下车的时候，身上除了一张身份证，只剩下5块钱
     '''
 
-    #===================卖身份证 ========================
+    # ===================卖身份证 ========================
     @do_once("卖身份证")
-    @random_success("卖身份证",0.85,"那个找你做法人的人就是个骗子，拿了你的身份证转身就跑掉了,你的钱也没有拿回来")
+    @random_success("卖身份证", 0.85, "那个找你做法人的人就是个骗子，拿了你的身份证转身就跑掉了,你的钱也没有拿回来")
     def sale_IDcard():
         status["Message"] = "你把自己的身份证卖掉换了100块钱\n"
-        status["Money"]+=100
-    add_operation("卖身份证",sale_IDcard)
+        status["Money"] += 100
+    add_operation("卖身份证", sale_IDcard)
 
-    #===================还债务   ========================
+    # ===================还债务   ========================
     def pay_debt():
         status["Message"] = "你凑了一笔钱，还上了100块钱的债务\n"
-        status["Money"]-= 100
+        status["Money"] -= 100
         status["Debt"] -= 100
-    add_operation("还100块钱的债",pay_debt)    
+    add_operation("还100块钱的债", pay_debt)
 
-    #===================做日结 ========================
-    @random_success("做日结",0.9,"你被骗进了限制人身自由的黑工厂，你完全顾不上别的就赶紧跑了出来")
+    # ===================做日结 ========================
+    @random_success("做日结", 0.9, "你被骗进了限制人身自由的黑工厂，你完全顾不上别的就赶紧跑了出来")
     def do_one_day_job():
         action_stack.append([])
         status["Message"] = "你挤破头皮想要找到一份工作\n"
         if random.random() < 0.1:
             status["Message"] += "没想到一个趔趄，别人就把你从窗口挤开了，你想要挣扎，结果还挨了一拳"
             status["HP"] -= 3
-        
+
         @pop_action_stack
-        #@random_success("好好干活",0.9,"你虽然无比认真，但是还是犯了错误，被主管臭骂一顿之后赶了出来")
+        # @random_success("好好干活",0.9,"你虽然无比认真，但是还是犯了错误，被主管臭骂一顿之后赶了出来")
         def work_hard():
             intRand = random.randint(1, 5)
             if intRand == 1:
@@ -506,17 +569,18 @@ def init(status):
                 return
 
             status["Message"] = "你勤奋地工作了一天，获得了130块钱。\n"
-            if status["ContinueWorkTime"] > 0 :
-                status["Message"] += "主管对你的印象有所改善，他给你稍微加了%d块工资，以示鼓励\n"%(status["ContinueWorkTime"]*5)
+            if status["ContinueWorkTime"] > 0:
+                status["Message"] += "主管对你的印象有所改善，他给你稍微加了%d块工资，以示鼓励\n" % (
+                    status["ContinueWorkTime"]*5)
             status["Message"] += "你的主管觉得你不错，告诉你如果经常来，会考虑给你加点工资"
 
-            status["Money"]+=130 + status["ContinueWorkTime"]*5
+            status["Money"] += 130 + status["ContinueWorkTime"]*5
             status["HP"] -= 30
             status["ContinueWorkTime"] += 1
-        add_operation("好好干活",work_hard)
+        add_operation("好好干活", work_hard)
 
         @pop_action_stack
-        #@random_success("摸鱼",0.5,"你心不在焉地摆弄着手里的焊枪，结果一不小心戳在了电路板上，你的主管忍无可忍直接让你滚犊子")
+        # @random_success("摸鱼",0.5,"你心不在焉地摆弄着手里的焊枪，结果一不小心戳在了电路板上，你的主管忍无可忍直接让你滚犊子")
         def relax():
             intRand = random.randint(1, 2)
             if intRand != 2:
@@ -525,29 +589,30 @@ def init(status):
             status["Message"] = "你摸了一天鱼\n"
             if random.random() < 0.5:
                 status["Message"] += "主管并没有发现你在摸鱼，还是给你发了130块钱的工资"
-                status["Money"]+=130
+                status["Money"] += 130
                 status["HP"] -= 15
                 status["ContinueWorkTime"] += 1
             else:
                 status["Message"] += "主管发现你在摸鱼，但是对你无可奈何。他清楚地知道这里是三和，所以给了你70块钱让你早点滚蛋别来了"
-                status["Money"]+=70
+                status["Money"] += 70
                 status["HP"] -= 15
                 status["ContinueWorkTime"] = 0
-        add_operation("摸鱼",relax)
-    add_operation("做日结",do_one_day_job)
+        add_operation("摸鱼", relax)
+    add_operation("做日结", do_one_day_job)
 
-    #===================去网吧 ========================
+    # ===================去网吧 ========================
     def go_to_netbar():
         action_stack.append([])
         status["Message"] = "你走进一家网吧，花了3块钱开了1个小时的机子\n"
-        @random_success("开一把撸啊撸",0.5,"你这把队友坑的要命，结果输得很惨，还被对面肆意嘲讽，气的要命")
+
+        @random_success("开一把撸啊撸", 0.5, "你这把队友坑的要命，结果输得很惨，还被对面肆意嘲讽，气的要命")
         def play_lol():
             status["Message"] = "你决定用小号打一把撸啊撸"
             status["HP"] -= 3
-        add_operation("开一把撸啊撸",play_lol)
+        add_operation("开一把撸啊撸", play_lol)
 
-        #加入支付宝被举报功能
-        @random_success("去戒赌吧哭穷要饭",0.9,"贴吧这种不靠谱的东西你也相信？")
+        # 加入支付宝被举报功能
+        @random_success("去戒赌吧哭穷要饭", 0.9, "贴吧这种不靠谱的东西你也相信？")
         def go_to_tieba():
             if random.random() < 0.5:
                 status["Message"] = '''
@@ -557,66 +622,68 @@ def init(status):
                 status["Money"] -= 5
             else:
                 status["Message"] = "你开始一把鼻涕一把泪地在戒赌吧说自己的遭遇，并发了自己的支付宝账号，请求有人能够给你打几块钱，没想到还真的有人上当"
-                status["Money"]+=3
+                status["Money"] += 3
             status["HP"] -= 3
-        add_operation("去戒赌吧哭穷要饭",go_to_tieba)
+        add_operation("去戒赌吧哭穷要饭", go_to_tieba)
 
-        #@random_success("开一局赔率10倍的网赌",0.2,"今天运气一点都不行，你输得非常惨")
+        # @random_success("开一局赔率10倍的网赌",0.2,"今天运气一点都不行，你输得非常惨")
         def gambling10():
             status["Message"] = "你打开熟悉的网络赌博平台，下了10块钱的赌注\n"
-            if random.random()<0.05:
+            if random.random() < 0.05:
                 status["Money"] += 100000000
                 status["Message"] += "这波就稳了！净赚100！今晚怕是得修车庆祝一下"
             else:
                 status["Money"] -= 10
                 status["Message"] += "结果运气真的不站在你这边，你输了10块，怎么也得修车开开运气"
             status["HP"] -= 3
-        add_operation("开一局赔率10倍的网赌",gambling10) 
+        add_operation("开一局赔率10倍的网赌", gambling10)
 
         @do_once("点一碗红烧牛肉面")
         def buy_noodle():
             status["Message"] = "你买了一碗3块钱的红烧牛肉面,恢复了一些体力\n"
             status["HP"] += 3
             status["Money"] -= 3
-        add_operation("点一碗红烧牛肉面",buy_noodle) 
+        add_operation("点一碗红烧牛肉面", buy_noodle)
 
         @pop_action_stack
         def finish_play():
             status["Message"] = "你揉了揉太阳穴，结账下机了\n"
             status["HP"] -= 1
             status["Money"] -= 3
-        add_operation("结账下机",finish_play)         
+        add_operation("结账下机", finish_play)
 
-    add_operation("去网吧上网",go_to_netbar)
-    #     status["Money"] += 
+    add_operation("去网吧上网", go_to_netbar)
+    #     status["Money"] +=
 
+    # ===================吃挂逼面喝大水 ========================
 
-    #===================吃挂逼面喝大水 ========================
     def eat():
         status["Message"] = "你点了一份3块钱的挂逼面和一块钱的大水，呼哧呼哧地吃了起来，增加了3点HP\n"
-        status["HP"]+=3
-        status["Money"]-=4
-    add_operation("吃挂逼面喝大水",eat)   
+        status["HP"] += 3
+        status["Money"] -= 4
+    add_operation("吃挂逼面喝大水", eat)
 
-    #===================在街上瞎晃荡 ========================
+    # ===================在街上瞎晃荡 ========================
     def walk_on_street():
         status["Message"] = "你开始在深圳三和的街上晃荡，人来人往，没有任何人注意到你的存在\n"
         search_on_street()
-    add_operation("在街上晃荡",walk_on_street)
-#===================给爸妈打电话 ========================
+    add_operation("在街上晃荡", walk_on_street)
+# ===================给爸妈打电话 ========================
 
-def add_root_operation(name,handler):
-    for k,v in action_stack[0]:
+
+def add_root_operation(name, handler):
+    for k, v in action_stack[0]:
         if k == name:
             return
-    action_stack[0].append((name,handler))
+    action_stack[0].append((name, handler))
+
 
 def event_manager(ctx):
     global bGameStarted
     global action_stack
     global status
-    #===============health and money check ===================
-    if status["HP"] <= 0 :
+    # ===============health and money check ===================
+    if status["HP"] <= 0:
         straa = reflush_screen()
         strRRRR = ('''
 很遗憾，由于你的健康状况已经低到不可忍受，你也没有能力寻找到治疗。
@@ -630,12 +697,12 @@ def event_manager(ctx):
         bGameStarted = False
         action_stack = [[]]
         status = {
-            "Money":5,
-            "HP":100,
-            "Debt":50000,
-            "Message":"",
-            "ContinueWorkTime":0
-            }
+            "Money": 5,
+            "HP": 100,
+            "Debt": 50000,
+            "Message": "",
+            "ContinueWorkTime": 0
+        }
     if status["Money"] <= 0:
         strbb = reflush_screen()
         strRRRR = ('''
@@ -649,17 +716,17 @@ def event_manager(ctx):
         bGameStarted = False
         action_stack = [[]]
         status = {
-            "Money":5,
-            "HP":100,
-            "Debt":50000,
-            "Message":"",
-            "ContinueWorkTime":0
-            }
-        
+            "Money": 5,
+            "HP": 100,
+            "Debt": 50000,
+            "Message": "",
+            "ContinueWorkTime": 0
+        }
+
     if status["HP"] > 100:
         status["HP"] = 100
-    #===============睡觉===============================
-    if status["HP"] <= 60 :
+    # ===============睡觉===============================
+    if status["HP"] <= 60:
         status["Message"] += '''\n你感觉自己有一些疲惫了，可以考虑找个睡觉的地方'''
 
         def sleep_in_hole():
@@ -672,21 +739,21 @@ def event_manager(ctx):
                 status["Message"] += '''
 深夜的寒冷穿透你的骨髓，
 等熬到第二天早上的时候，你意识到自己发烧了
-                '''    
+                '''
                 status["HP"] -= 10
             elif random.random() < 0.3:
                 status["Message"] += '''
 深夜的寒冷穿透你的骨髓，
 冰冷的水泥地板没有让你很好地休息，但是还是恢复了一些体力
-                '''    
+                '''
                 status["HP"] += 10
             else:
                 status["Message"] += '''
 深夜的寒冷穿透你的骨髓，
 顾不得这些的你凑合着睡了过去，然后在太阳出来的时候醒了过来
-                '''    
+                '''
                 status["HP"] += 20
-        add_root_operation("睡桥洞",sleep_in_hole)  
+        add_root_operation("睡桥洞", sleep_in_hole)
 
         def sleep_in_hotel():
             status["Message"] = '''
@@ -695,31 +762,21 @@ def event_manager(ctx):
             '''
             status["HP"] += 50
             status["Money"] -= 50
-        add_root_operation("睡50的小旅馆",sleep_in_hotel)          
+        add_root_operation("睡50的小旅馆", sleep_in_hotel)
     return
+
+
 def main(ctx):
     init(status)
     str = reflush_screen()
-    str = str +"\n请回复继续游戏加空格加选项, 比如回复 继续游戏 1, 不玩请输入结束游戏"
+    str = str + "\n请回复继续游戏加空格加选项, 比如回复 继续游戏 1, 不玩请输入结束游戏"
     action.sendGroupText(ctx.FromGroupId, str)
 
 
 mt = 0
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-#------------------------------混乱#------------------------------
+# ------------------------------混乱#------------------------------
 def transYin(x, y, aaa):
     if x in {',', '，', '。'}:
         return '?'
@@ -735,17 +792,14 @@ def transYin(x, y, aaa):
 
 def chs2yin(s, aaa=0.5):
     return ''.join([transYin(x, y, aaa) for x, y in pseg.cut(s)])
-#----------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 
-#-----------------------------------------------------废话生成
-
-
-
+# -----------------------------------------------------废话生成
 
 
 xx = "学生会退会"
 
-text = [ 
+text = [
     "现在, 解决x的问题, 是非常非常重要的. 所以, ",
     "我们不得不面对一个非常尴尬的事实, 那就是, ",
     "x的发生, 到底需要如何做到, 不x的发生, 又会如何产生. ",
@@ -892,11 +946,13 @@ text = [
     "在不经意间这样说过",
 ]
 
+
 def 来点名人名言():
-    xx = 名人名言[random.randint(0,len(名人名言)-1)]
-    xx = xx.replace(  "曾经说过",前面垫话[random.randint(0,len(前面垫话)-1)] )
-    xx = xx.replace(  "这不禁令我深思",后面垫话[random.randint(0,len(后面垫话)-1)] )
+    xx = 名人名言[random.randint(0, len(名人名言)-1)]
+    xx = xx.replace("曾经说过", 前面垫话[random.randint(0, len(前面垫话)-1)])
+    xx = xx.replace("这不禁令我深思", 后面垫话[random.randint(0, len(后面垫话)-1)])
     return xx
+
 
 def 另起一段():
     xx = ". "
@@ -904,44 +960,36 @@ def 另起一段():
     xx += "    "
     return xx
 
+    # print(tmp)
 
 
-    #print(tmp)
-    
-    
-    
-    
 def GPBT(strWords):
     xx = strWords
     for x in xx:
         tmp = str()
-        while ( len(tmp) < 2000 ) :
-            分支 = random.randint(0,100)
+        while (len(tmp) < 2000):
+            分支 = random.randint(0, 100)
             if 分支 < 5:
                 tmp += 另起一段()
-            elif 分支 < 20 :
+            elif 分支 < 20:
                 tmp += 来点名人名言()
             else:
-                tmp += text[random.randint(0,len(text)-1)]
-        tmp = tmp.replace("x",xx)
+                tmp += text[random.randint(0, len(text)-1)]
+        tmp = tmp.replace("x", xx)
         return tmp
 
-#-----------------------------------------------------------------------------------------
-
-
-
+# -----------------------------------------------------------------------------------------
 
 
 def AIXXX(context):
-    RUN_DEVICE = 'cpu' # gpu 或 dml 或 cpu
-    MODEL_NAME = 'model/wangwen-2022-01-09' # 模型名
-    WORD_NAME = 'model/wangwen-2022-01-09' # 这个也修改
-    NUM_OF_RUNS = 1 # 写多少遍
-    LENGTH_OF_EACH = 200 # 每次写多少字
-    top_p = 0.8 # 这个的范围是 0 到 1。越大，变化越多。越小，生成效果越规矩。自己试试 0 和 0.5 和 1.0 的效果就知道了
+    RUN_DEVICE = 'cpu'  # gpu 或 dml 或 cpu
+    MODEL_NAME = 'model/wangwen-2022-01-09'  # 模型名
+    WORD_NAME = 'model/wangwen-2022-01-09'  # 这个也修改
+    NUM_OF_RUNS = 1  # 写多少遍
+    LENGTH_OF_EACH = 200  # 每次写多少字
+    top_p = 0.8  # 这个的范围是 0 到 1。越大，变化越多。越小，生成效果越规矩。自己试试 0 和 0.5 和 1.0 的效果就知道了
     top_p_newline = 0.9
-    
-    
+
     ctx_len = 512
     n_layer = 12
     n_head = 12
@@ -957,11 +1005,11 @@ def AIXXX(context):
     #print('您输入的开头有 ' + str(len(context)) + ' 个字。注意，模型只会看最后 ' + str(ctx_len) + ' 个字。')
 
     with open(WORD_NAME + '.json', "r", encoding="utf-16") as result_file:
-        word_table = json.load(result_file)   
+        word_table = json.load(result_file)
 
     vocab_size = len(word_table)
 
-    train_dataset = lambda: None
+    def train_dataset(): return None
     train_dataset.stoi = {v: int(k) for k, v in word_table.items()}
     train_dataset.itos = {int(k): v for k, v in word_table.items()}
     UNKNOWN_CHAR = train_dataset.stoi['\ue083']
@@ -973,10 +1021,12 @@ def AIXXX(context):
         sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_ALL
         sess_options.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
         sess_options.enable_mem_pattern = False
-        rt_session = rt.InferenceSession(MODEL_NAME + '.onnx', sess_options=sess_options, providers=['DmlExecutionProvider'])
+        rt_session = rt.InferenceSession(
+            MODEL_NAME + '.onnx', sess_options=sess_options, providers=['DmlExecutionProvider'])
         rt_session.set_providers(['DmlExecutionProvider'])
     else:
-        model = GPT(GPTConfig(vocab_size, ctx_len, n_layer=n_layer, n_head=n_head, n_embd=n_embd, n_attn=n_attn, n_ffn=n_ffn))
+        model = GPT(GPTConfig(vocab_size, ctx_len, n_layer=n_layer,
+                    n_head=n_head, n_embd=n_embd, n_attn=n_attn, n_ffn=n_ffn))
         m2 = torch.load(MODEL_NAME + '.pth', map_location='cpu').state_dict()
         for i in range(n_layer):
             prefix = f'blocks.{i}.attn.'
@@ -984,7 +1034,7 @@ def AIXXX(context):
             time_alpha = m2[prefix + 'time_alpha']
             time_beta = m2[prefix + 'time_beta']
             mask = m2[prefix + 'mask']
-        
+
             TT = ctx_len
             T = ctx_len
             w = F.pad(time_w, (0, TT))
@@ -992,13 +1042,13 @@ def AIXXX(context):
             w = w[:, :-TT].reshape(-1, TT, 2 * TT - 1)
             w = w[:, :, TT-1:]
             w = w[:, :T, :T] * time_alpha[:, :, :T] * time_beta[:, :T, :]
-            w = w.masked_fill(mask[:T, :T] == 0, 0)    
-        
+            w = w.masked_fill(mask[:T, :T] == 0, 0)
+
             m2[prefix + 'time_ww'] = w
             del m2[prefix + 'time_w']
             del m2[prefix + 'time_alpha']
             del m2[prefix + 'time_beta']
-            del m2[prefix + 'mask']    
+            del m2[prefix + 'mask']
         if RUN_DEVICE == 'gpu':
             model = model.cuda()
         model.load_state_dict(m2)
@@ -1006,22 +1056,23 @@ def AIXXX(context):
     #print('done:', MODEL_NAME, '&', WORD_NAME)
 
     ##############################################################################
-    
+
     strAllResult = ""
     for run in range(NUM_OF_RUNS):
 
-        x = np.array([train_dataset.stoi.get(s, UNKNOWN_CHAR) for s in context], dtype=np.int64)
+        x = np.array([train_dataset.stoi.get(s, UNKNOWN_CHAR)
+                     for s in context], dtype=np.int64)
 
         real_len = len(x)
         print_begin = 0
-    
-    
+
         for i in range(LENGTH_OF_EACH):
 
             if i == 0:
-    
+
                 #print(('-' * 60) + '\n' + context.replace('\n', '\n  ').strip('\n'), end = '')
-                strAllResult += '\n' + context.replace('\n', '\n  ').strip('\n')
+                strAllResult += '\n' + \
+                    context.replace('\n', '\n  ').strip('\n')
                 print_begin = real_len
 
             with torch.no_grad():
@@ -1030,70 +1081,40 @@ def AIXXX(context):
                         xxx = np.pad(x, (0, ctx_len - real_len))
                     else:
                         xxx = x
-                    out = rt_session.run(None, {rt_session.get_inputs()[0].name: [xxx[-ctx_len:]]})
+                    out = rt_session.run(
+                        None, {rt_session.get_inputs()[0].name: [xxx[-ctx_len:]]})
                     out = torch.tensor(out[0])
                 else:
-                    xxx = torch.tensor(x[-ctx_len:], dtype=torch.long)[None,...]
+                    xxx = torch.tensor(
+                        x[-ctx_len:], dtype=torch.long)[None, ...]
                     if RUN_DEVICE == 'gpu':
                         xxx = xxx.cuda()
-                    out, _ = model(xxx)            
+                    out, _ = model(xxx)
                 out[:, :, UNKNOWN_CHAR] = -float('Inf')
             pos = -1 if real_len >= ctx_len else real_len - 1
 
             if train_dataset.itos[int(x[real_len-1])] == '\n':
-                char = src.utils.sample_logits(out, pos, temperature=1.0, top_p=top_p_newline)
+                char = src.utils.sample_logits(
+                    out, pos, temperature=1.0, top_p=top_p_newline)
             else:
-                char = src.utils.sample_logits(out, pos, temperature=1.0, top_p=top_p)
-    
+                char = src.utils.sample_logits(
+                    out, pos, temperature=1.0, top_p=top_p)
+
             x = np.append(x, char)
             real_len += 1
-    
+
             if i % 10 == 9 or i == LENGTH_OF_EACH-1 or i < 10 or RUN_DEVICE != 'gpu':
-                completion = ''.join([train_dataset.itos[int(i)] for i in x[print_begin:real_len]])
+                completion = ''.join([train_dataset.itos[int(i)]
+                                     for i in x[print_begin:real_len]])
                 strAllResult += completion.replace('\n', '\n  ')
                 #print(completion.replace('\n', '\n  '), end = '', flush=True)
                 print_begin = real_len
-            
-    #print("结果===>"+strAllResult)
+
+    # print("结果===>"+strAllResult)
     return strAllResult
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#------------------------------幻影坦克------------------------------
+# ------------------------------幻影坦克------------------------------
 def linear_add(pic1, pic2):
     out = pic1 + pic2
     out[out > 255] = 255
@@ -1133,33 +1154,33 @@ def add_alpha(pic, A):
 
 def change_color_level(pic, is_light):
     light_table = [120, 120, 121, 121, 122, 122, 123, 123, 124, 124, 125, 125, 126, 126, 127, 127, 128, 128,
-                129, 129, 130, 130, 131, 132, 132, 133, 133, 134, 134, 135, 135, 136, 136, 137, 137, 138,
-                138, 139, 139, 140, 140, 141, 142, 142, 143, 143, 144, 144, 145, 145, 146, 146, 147, 147,
-                148, 148, 149, 149, 150, 150, 151, 152, 152, 153, 153, 154, 154, 155, 155, 156, 156, 157,
-                157, 158, 158, 159, 159, 160, 161, 161, 162, 162, 163, 163, 164, 164, 165, 165, 166, 166,
-                167, 167, 168, 168, 169, 170, 170, 171, 171, 172, 172, 173, 173, 174, 174, 175, 175, 176,
-                176, 177, 177, 178, 179, 179, 180, 180, 181, 181, 182, 182, 183, 183, 184, 184, 185, 185,
-                186, 186, 187, 188, 188, 189, 189, 190, 190, 191, 191, 192, 192, 193, 193, 194, 194, 195,
-                195, 196, 197, 197, 198, 198, 199, 199, 200, 200, 201, 201, 202, 202, 203, 203, 204, 205,
-                205, 206, 206, 207, 207, 208, 208, 209, 209, 210, 210, 211, 211, 212, 212, 213, 214, 214,
-                215, 215, 216, 216, 217, 217, 218, 218, 219, 219, 220, 220, 221, 222, 222, 223, 223, 224,
-                224, 225, 225, 226, 226, 227, 227, 228, 228, 229, 229, 230, 231, 231, 232, 232, 233, 233,
-                234, 234, 235, 235, 236, 236, 237, 237, 238, 239, 239, 240, 240, 241, 241, 242, 242, 243,
-                243, 244, 244, 245, 245, 246, 247, 247, 248, 248, 249, 249, 250, 250, 251, 251, 252, 252,
-                253, 253, 254, 255]
+                   129, 129, 130, 130, 131, 132, 132, 133, 133, 134, 134, 135, 135, 136, 136, 137, 137, 138,
+                   138, 139, 139, 140, 140, 141, 142, 142, 143, 143, 144, 144, 145, 145, 146, 146, 147, 147,
+                   148, 148, 149, 149, 150, 150, 151, 152, 152, 153, 153, 154, 154, 155, 155, 156, 156, 157,
+                   157, 158, 158, 159, 159, 160, 161, 161, 162, 162, 163, 163, 164, 164, 165, 165, 166, 166,
+                   167, 167, 168, 168, 169, 170, 170, 171, 171, 172, 172, 173, 173, 174, 174, 175, 175, 176,
+                   176, 177, 177, 178, 179, 179, 180, 180, 181, 181, 182, 182, 183, 183, 184, 184, 185, 185,
+                   186, 186, 187, 188, 188, 189, 189, 190, 190, 191, 191, 192, 192, 193, 193, 194, 194, 195,
+                   195, 196, 197, 197, 198, 198, 199, 199, 200, 200, 201, 201, 202, 202, 203, 203, 204, 205,
+                   205, 206, 206, 207, 207, 208, 208, 209, 209, 210, 210, 211, 211, 212, 212, 213, 214, 214,
+                   215, 215, 216, 216, 217, 217, 218, 218, 219, 219, 220, 220, 221, 222, 222, 223, 223, 224,
+                   224, 225, 225, 226, 226, 227, 227, 228, 228, 229, 229, 230, 231, 231, 232, 232, 233, 233,
+                   234, 234, 235, 235, 236, 236, 237, 237, 238, 239, 239, 240, 240, 241, 241, 242, 242, 243,
+                   243, 244, 244, 245, 245, 246, 247, 247, 248, 248, 249, 249, 250, 250, 251, 251, 252, 252,
+                   253, 253, 254, 255]
     dark_table = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,
-                10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21,
-                22, 22, 23, 23, 24, 24, 25, 25, 26, 26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 32, 32,
-                33, 33, 34, 34, 35, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 41, 41, 42, 42, 43, 43,
-                44, 44, 45, 45, 46, 46, 47, 47, 48, 48, 49, 50, 50, 51, 51, 52, 52, 53, 53, 54, 54,
-                55, 55, 56, 56, 57, 57, 58, 59, 59, 60, 60, 61, 61, 62, 62, 63, 63, 64, 64, 65, 65,
-                66, 66, 67, 68, 68, 69, 69, 70, 70, 71, 71, 72, 72, 73, 73, 74, 74, 75, 75, 76, 77,
-                77, 78, 78, 79, 79, 80, 80, 81, 81, 82, 82, 83, 83, 84, 85, 85, 86, 86, 87, 87, 88,
-                88, 89, 89, 90, 90, 91, 91, 92, 92, 93, 94, 94, 95, 95, 96, 96, 97, 97, 98, 98, 99,
-                99, 100, 100, 101, 102, 102, 103, 103, 104, 104, 105, 105, 106, 106, 107, 107, 108,
-                108, 109, 109, 110, 111, 111, 112, 112, 113, 113, 114, 114, 115, 115, 116, 116, 117,
-                117, 118, 119, 119, 120, 120, 121, 121, 122, 122, 123, 123, 124, 124, 125, 125, 126,
-                127, 127, 128, 128, 129, 129, 130, 130, 131, 131, 132, 132, 133, 133, 134, 135]
+                  10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21,
+                  22, 22, 23, 23, 24, 24, 25, 25, 26, 26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 32, 32,
+                  33, 33, 34, 34, 35, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 41, 41, 42, 42, 43, 43,
+                  44, 44, 45, 45, 46, 46, 47, 47, 48, 48, 49, 50, 50, 51, 51, 52, 52, 53, 53, 54, 54,
+                  55, 55, 56, 56, 57, 57, 58, 59, 59, 60, 60, 61, 61, 62, 62, 63, 63, 64, 64, 65, 65,
+                  66, 66, 67, 68, 68, 69, 69, 70, 70, 71, 71, 72, 72, 73, 73, 74, 74, 75, 75, 76, 77,
+                  77, 78, 78, 79, 79, 80, 80, 81, 81, 82, 82, 83, 83, 84, 85, 85, 86, 86, 87, 87, 88,
+                  88, 89, 89, 90, 90, 91, 91, 92, 92, 93, 94, 94, 95, 95, 96, 96, 97, 97, 98, 98, 99,
+                  99, 100, 100, 101, 102, 102, 103, 103, 104, 104, 105, 105, 106, 106, 107, 107, 108,
+                  108, 109, 109, 110, 111, 111, 112, 112, 113, 113, 114, 114, 115, 115, 116, 116, 117,
+                  117, 118, 119, 119, 120, 120, 121, 121, 122, 122, 123, 123, 124, 124, 125, 125, 126,
+                  127, 127, 128, 128, 129, 129, 130, 130, 131, 131, 132, 132, 133, 133, 134, 135]
 
     pic_shape = pic.shape
     out = np.zeros((pic_shape[0], pic_shape[1], 4), dtype=np.uint8)
@@ -1199,12 +1220,10 @@ def make(file1, file2, savePath):
     out_pic = divide(hidden_pic, out_pic)
     out_pic = add_alpha(out_pic, A)
     #cv2.imwrite(savePath, out_pic,  [int(cv2.IMWRITE_PNG_COMPRESSION), 7])
-    base64_str = cv2.imencode('.png',out_pic)[1].tobytes()
+    base64_str = cv2.imencode('.png', out_pic)[1].tobytes()
     base64_str = base64.b64encode(base64_str).decode()
     return base64_str
-#----------------------------------------------------------------------------------
-
-
+# ----------------------------------------------------------------------------------
 
 
 def is_contain_chinese(check_str):
@@ -1217,7 +1236,8 @@ def is_contain_chinese(check_str):
         if u'\u4e00' <= ch <= u'\u9fff':
             return True
     return False
-    
+
+
 def to_unicode(check_str):
     ret = ""
     for v in check_str:
@@ -1225,13 +1245,7 @@ def to_unicode(check_str):
     return ret
 
 
-
-
-
-
-
-#---------------------------------------------------------------------------------
-
+# ---------------------------------------------------------------------------------
 LEFT_PART_VERTICAL_BLANK_MULTIPLY_FONT_HEIGHT = 2
 LEFT_PART_HORIZONTAL_BLANK_MULTIPLY_FONT_WIDTH = 1 / 4
 RIGHT_PART_VERTICAL_BLANK_MULTIPLY_FONT_HEIGHT = 1
@@ -1246,16 +1260,22 @@ FONT_SIZE = 50
 FONT_PATH = "./ArialEnUnicodeBold.ttf"
 assert FONT_PATH is not None, "请自己处理字体路径"
 
-#maijiaxiu ---------------------------------------------------------------------------------------------------------------
+# SavePic ---------------------------------------------------------------------------------------------------------------
 
-def maijiaxiu(urlTB):
+
+def SavePic(urlTB):
     html = requests.get(urlTB)
     with open('./MJX.png', 'wb') as file:
         file.write(html.content)
 
 
-#----------------------------------------------------------------------------------------------------------------
+def SavePic2222(urlTB):
+    html = requests.get(urlTB)
+    with open('./MJX2.png', 'wb') as file:
+        file.write(html.content)
 
+
+# ----------------------------------------------------------------------------------------------------------------
 
 
 # clclc---------------------------------------------------------------------------------
@@ -1269,7 +1289,7 @@ def ciliSou(strSearch, nmmm):
     sizeArr = []
     arr1 = strTemp11.split('cililianjie/')
 
-    #print(len(arr1))
+    # print(len(arr1))
 
     for ao1 in arr1:
         if ao1.find('.html" title="') > -1:
@@ -1283,9 +1303,8 @@ def ciliSou(strSearch, nmmm):
             strSIZEArr = aaaRRR[2].split('<')
             sizeArr.append(strSIZEArr[0])
 
-
-    #print(textArr[0])
-    #print(textTTTTArr[0])
+    # print(textArr[0])
+    # print(textTTTTArr[0])
 
     nLength = len(textTTTTArr)
     if nmmm > nLength:
@@ -1297,24 +1316,20 @@ def ciliSou(strSearch, nmmm):
     for i in range(nLength):
         strUUU = textArr[i]
         strTTTI = textTTTTArr[i]
-        strLine = "《" + strTTTI +"》大小:" + sizeArr[i] + " 地址：magnet:?xt=urn:btih:" + strUUU+" \n "
+        strLine = "《" + strTTTI + "》大小:" + \
+            sizeArr[i] + " 地址：magnet:?xt=urn:btih:" + strUUU+" \n "
         strResult = strResult + strLine
 
-
-    #print(strResult)
+    # print(strResult)
     return strResult
 
-#-----------------------------------------------------------------------
+# -----------------------------------------------------------------------
 
 
-
-
-
-
-
-#---------------------------------------------
+# ---------------------------------------------
 ENSTRS = ("富强", "民主", "文明", "和谐", "自由", "平等",
           "公正", "法治", "爱国", "敬业", "诚信", "友善")
+
 
 def decoder(string):
     len_str = len(string)
@@ -1335,8 +1350,8 @@ def decoder(string):
         binstr = ''.join(binstr_list)
         result = result + chr(int(binstr, 2))
     return result
- 
- 
+
+
 def encoder(string):
     result = ''
     binstr_list = [b.replace('0b', '') for b in [bin(ord(c)) for c in string]]
@@ -1356,20 +1371,9 @@ def encoder(string):
                 int_list.append(i)
         result = result + ''.join([ENSTRS[index] for index in int_list])
     return result
- 
-
-#---------------------------------------------
 
 
-
-
-
-
-
-
-
-
-
+# ---------------------------------------------
 
 
 # --------------------------------------------------------------------------
@@ -1380,32 +1384,25 @@ def jiemi(strText):
     }
     try:
         resultStr = ""
-        r = json.loads(requests.post(url, data = aaaa).text)
-        #print(str(r))
+        r = json.loads(requests.post(url, data=aaaa).text)
+        # print(str(r))
         name = r[0]['name']
         trans = r[0]['trans']
-        resultStr = "\n缩写是"+ (name) + "\n 结果可能是" + (str(trans))
-        #print(resultStr)
+        resultStr = "\n缩写是" + (name) + "\n 结果可能是" + (str(trans))
+        # print(resultStr)
         return resultStr
     except:
-        #print(str(err))
+        # print(str(err))
         return "解密失败！！！！！！！！！！！"
 
 
 # --------------------------------------------------------------------------
 
 
+# 摩斯码 CODE----------------------------------------------------------------------------
 
-
-
-
-
-
-
-#摩斯码 CODE----------------------------------------------------------------------------
-
-def wv(t,f,v,wf):
-    sr=8000
+def wv(t, f, v, wf):
+    sr = 8000
     '''
     t:写入时长
     f:声音频率
@@ -1413,31 +1410,33 @@ def wv(t,f,v,wf):
     wf：一个可以写入的音频文件
     sr：采样率
     '''
-    tt=0
-    dt=1.0/sr
-    while tt<=t:
-        s=math.sin(tt*math.pi*2*f)*v*32768 #采样，调节音量，映射到[-2^15,2^15)
-        s=int(s)
-        fd=struct.pack("h",s) #转换成8bit二进制数据
-        wf.writeframes(fd) #写入音频文件
-        tt+=dt #时间流逝
-         
-MORSE_CODE_DICT = { 'A':'.-', 'B':'-...',
-                    'C':'-.-.', 'D':'-..', 'E':'.',
-                    'F':'..-.', 'G':'--.', 'H':'....',
-                    'I':'..', 'J':'.---', 'K':'-.-',
-                    'L':'.-..', 'M':'--', 'N':'-.',
-                    'O':'---', 'P':'.--.', 'Q':'--.-',
-                    'R':'.-.', 'S':'...', 'T':'-',
-                    'U':'..-', 'V':'...-', 'W':'.--',
-                    'X':'-..-', 'Y':'-.--', 'Z':'--..',
-                    '1':'.----', '2':'..---', '3':'...--',
-                    '4':'....-', '5':'.....', '6':'-....',
-                    '7':'--...', '8':'---..', '9':'----.',
-                    '0':'-----', ', ':'--..--', '.':'.-.-.-',
-                    '?':'..--..', '/':'-..-.', '-':'-....-',
-                    '(':'-.--.', ')':'-.--.-'}
- 
+    tt = 0
+    dt = 1.0/sr
+    while tt <= t:
+        s = math.sin(tt*math.pi*2*f)*v*32768  # 采样，调节音量，映射到[-2^15,2^15)
+        s = int(s)
+        fd = struct.pack("h", s)  # 转换成8bit二进制数据
+        wf.writeframes(fd)  # 写入音频文件
+        tt += dt  # 时间流逝
+
+
+MORSE_CODE_DICT = {'A': '.-', 'B': '-...',
+                   'C': '-.-.', 'D': '-..', 'E': '.',
+                   'F': '..-.', 'G': '--.', 'H': '....',
+                   'I': '..', 'J': '.---', 'K': '-.-',
+                   'L': '.-..', 'M': '--', 'N': '-.',
+                   'O': '---', 'P': '.--.', 'Q': '--.-',
+                   'R': '.-.', 'S': '...', 'T': '-',
+                   'U': '..-', 'V': '...-', 'W': '.--',
+                   'X': '-..-', 'Y': '-.--', 'Z': '--..',
+                   '1': '.----', '2': '..---', '3': '...--',
+                   '4': '....-', '5': '.....', '6': '-....',
+                   '7': '--...', '8': '---..', '9': '----.',
+                   '0': '-----', ', ': '--..--', '.': '.-.-.-',
+                   '?': '..--..', '/': '-..-.', '-': '-....-',
+                   '(': '-.--.', ')': '-.--.-'}
+
+
 def encrypt(message):
     cipher = ''
     for letter in message:
@@ -1446,11 +1445,12 @@ def encrypt(message):
         else:
             cipher += ' '
     return cipher
- 
+
+
 def decrypt(message):
- 
+
     message += ' '
- 
+
     decipher = ''
     citext = ''
     for letter in message:
@@ -1459,53 +1459,53 @@ def decrypt(message):
             citext += letter
         else:
             i += 1
-            if i == 2 :
+            if i == 2:
                 decipher += ' '
             else:
                 decipher += list(MORSE_CODE_DICT.keys())[list(MORSE_CODE_DICT
-                .values()).index(citext)]
+                                                              .values()).index(citext)]
                 citext = ''
     return decipher
- 
+
+
 def mainMorse(msg, FromGroupId):
-    
-    ff=wave.open("./morse.wav","w")
+
+    ff = wave.open("./morse.wav", "w")
     ff.setframerate(8000)
     ff.setnchannels(1)
     ff.setsampwidth(2)
- 
 
     message = msg
-    if u'\u0039' >= message >= u'\u0030' or u'\u005a' >= message >= u'\u0041' or u'\u007a'>= message >= u'\u0061': #判断是否只有数字字母
+    if u'\u0039' >= message >= u'\u0030' or u'\u005a' >= message >= u'\u0041' or u'\u007a' >= message >= u'\u0061':  # 判断是否只有数字字母
         li = encrypt(message.upper())
         #print (li)
         mo = []
         for i in li:
-            if i=="-":
+            if i == "-":
                 mo.append("2")
                 mo.append("0")
             elif i == ".":
                 mo.append("1")
                 mo.append("0")
-            elif i==" ":
+            elif i == " ":
                 mo.append("3")
-        #print(mo)
+        # print(mo)
         lo = []
         for i in mo:
-            if i =="0" or i == "1":
+            if i == "0" or i == "1":
                 lo.append(1)
-            elif i =="2" or i == "3":
+            elif i == "2" or i == "3":
                 lo.append(3)
-        #print(lo)
-        note= {"1":600,"2":600,"3":0,"0":0} #600是滴答正玄波频率，如更改2个都改
+        # print(lo)
+        note = {"1": 600, "2": 600, "3": 0, "0": 0}  # 600是滴答正玄波频率，如更改2个都改
         for i in range(len(mo)):
-            wv(lo[i]/17.0,note[mo[i]], 0.8, ff) #改变17数值cw快慢
+            wv(lo[i]/17.0, note[mo[i]], 0.8, ff)  # 改变17数值cw快慢
         ff.close()
-        
-        with open('./morse.wav', 'rb') as ffff: 
+
+        with open('./morse.wav', 'rb') as ffff:
             dataffff = ffff.read()
-            encodestr = base64.b64encode(dataffff) # 得到 byte 编码的数据
-            action.sendGroupVoice(FromGroupId, "", encodestr)
+            encodestr = base64.b64encode(dataffff).decode()  # 得到 byte 编码的数据
+            action.sendGroupVoice(FromGroupId, voiceBase64Buf=encodestr)
         return True
     else:
         result = decrypt(message)
@@ -1513,130 +1513,98 @@ def mainMorse(msg, FromGroupId):
         #print (result)
 
 
-#-------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-#-----JIKI----------------------------------------------------
-#---------------------------------------------------------
-#---------------------------------------------------------jiki一下
+# -----JIKI----------------------------------------------------
+# ---------------------------------------------------------
+# ---------------------------------------------------------jiki一下
 #from error import error
 
 class Jiki:
-	def __init__(self):
-		self.headers = {
-			"Content-Type":"application/json;charset=UTF-8",
-			"Client":"web",
-			"Client-Version":"2.1.66a",
-			"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36",
-		}
-		self.auto_complete = "https://api.jikipedia.com/go/auto_complete"
-		self.api = "https://api.jikipedia.com/go/search_definitions"
-		self.eval_cqp_data = ""
+    def __init__(self):
+        self.headers = {
+            "Content-Type": "application/json;charset=UTF-8",
+            "Client": "web",
+            "Client-Version": "2.1.66a",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36",
+        }
+        self.auto_complete = "https://api.jikipedia.com/go/auto_complete"
+        self.api = "https://api.jikipedia.com/go/search_definitions"
+        self.eval_cqp_data = ""
 
-	def check(self, word):
-		
-		if len(word) > 10:
-			return {"res":"不支持该类型消息", "error": 99}
-		else:
-			i = {}
-			i["error"] = 0
-			i["title"],i["res"] = self.jiki(word)
-			i["complete"] = self.complete(word)
-			return i
+    def check(self, word):
 
-	def jiki(self,word):
-		
-		data = {
-			"phrase":word,
-			"page":1
-		}
-		try:
-			resp = requests.post(self.api,headers=self.headers,data=json.dumps(data),timeout=10)
-		except:
-			return "", "查询错误 ERROR 机器人即将爆炸"
-		resp.encoding = "utf8"
-		try:
-			resp = json.loads(resp.text)["data"]
-			# resp = json.loads(resp.text)["data"][0]
-			for i,j in enumerate(resp):
-				# print(resp[i]["term"]["title"])
-				if word == resp[i]["term"]["title"]:
-					title = resp[i]["term"]["title"]
-					# res = resp["content"].replace("]","")
-					res = re.sub(r"\[.*?:","",resp[i]["content"].replace("]",""))
-					break
-			else:
-				i = random.randint(1,len(resp))-1
-				title = resp[i]["term"]["title"]
-				# res = res[0]["content"].replace("]","")
-				res = re.sub(r"\[.*?:","",resp[i]["content"].replace("]",""))
-		except Exception as e:
-			# print(e)
-			return "","查找不到相关释义"
-		else:
-			return title,res
-			# return res.replace("\n","")
-		
-	def complete(self,word):
-		
-		data = {
-			"phrase":word
-		}
-		try:
-			resp = requests.post(self.auto_complete,headers=self.headers,data=json.dumps(data),timeout=10)
-		except:
-			res = error(self.eval_cqp_data)
-			return res
-		resp.encoding = "utf8"
-		d = json.loads(resp.text)["data"]
-		if d == []:
-			return "联想词:无"
-		else:
-			return "联想词为:\n{}".format(",".join([i["word"] for i in d[:10]]))
+        if len(word) > 10:
+            return {"res": "不支持该类型消息", "error": 99}
+        else:
+            i = {}
+            i["error"] = 0
+            i["title"], i["res"] = self.jiki(word)
+            i["complete"] = self.complete(word)
+            return i
+
+    def jiki(self, word):
+
+        data = {
+            "phrase": word,
+            "page": 1
+        }
+        try:
+            resp = requests.post(self.api, headers=self.headers,
+                                 data=json.dumps(data), timeout=10)
+        except:
+            return "", "查询错误 ERROR 机器人即将爆炸"
+        resp.encoding = "utf8"
+        try:
+            resp = json.loads(resp.text)["data"]
+            # resp = json.loads(resp.text)["data"][0]
+            for i, j in enumerate(resp):
+                # print(resp[i]["term"]["title"])
+                if word == resp[i]["term"]["title"]:
+                    title = resp[i]["term"]["title"]
+                    # res = resp["content"].replace("]","")
+                    res = re.sub(
+                        r"\[.*?:", "", resp[i]["content"].replace("]", ""))
+                    break
+            else:
+                i = random.randint(1, len(resp))-1
+                title = resp[i]["term"]["title"]
+                # res = res[0]["content"].replace("]","")
+                res = re.sub(
+                    r"\[.*?:", "", resp[i]["content"].replace("]", ""))
+        except Exception as e:
+            # print(e)
+            return "", "查找不到相关释义"
+        else:
+            return title, res
+            # return res.replace("\n","")
+
+    def complete(self, word):
+
+        data = {
+            "phrase": word
+        }
+        try:
+            resp = requests.post(
+                self.auto_complete, headers=self.headers, data=json.dumps(data), timeout=10)
+        except:
+            res = error(self.eval_cqp_data)
+            return res
+        resp.encoding = "utf8"
+        d = json.loads(resp.text)["data"]
+        if d == []:
+            return "联想词:无"
+        else:
+            return "联想词为:\n{}".format(",".join([i["word"] for i in d[:10]]))
 
 
 jkjk = Jiki()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#-------------PH PIC----------------------------------------------------------
-#-----------------------------------------------------------------------------
-#-------------------------------------------------------------------------------
+# -------------PH PIC----------------------------------------------------------
+# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 
 def create_left_part_img(text: str, font_size: int, type_="h"):
     font = ImageFont.truetype(FONT_PATH, font_size)
@@ -1665,13 +1633,15 @@ def create_right_part_img(text: str, font_size: int):
     offset_y = font.font.getsize(text)[1][1]
     blank_height = font_height * RIGHT_PART_VERTICAL_BLANK_MULTIPLY_FONT_HEIGHT
     left_blank = int(
-        font_width / len(text) * RIGHT_PART_HORIZONTAL_BLANK_MULTIPLY_FONT_WIDTH
+        font_width / len(text) *
+        RIGHT_PART_HORIZONTAL_BLANK_MULTIPLY_FONT_WIDTH
     )
     image_width = font_width + 2 * left_blank
     image_height = font_height + offset_y + blank_height * 2
     image = Image.new("RGBA", (image_width, image_height), BOX_COLOR)
     draw = ImageDraw.Draw(image)
-    draw.text((left_blank, blank_height), text, fill=RIGHT_TEXT_COLOR, font=font)
+    draw.text((left_blank, blank_height), text,
+              fill=RIGHT_TEXT_COLOR, font=font)
 
     # 圆
     magnify_time = 10
@@ -1680,20 +1650,24 @@ def create_right_part_img(text: str, font_size: int):
         "L", (magnified_radii * 2, magnified_radii * 2), 0
     )  # 创建一个黑色背景的画布
     draw = ImageDraw.Draw(circle)
-    draw.ellipse((0, 0, magnified_radii * 2, magnified_radii * 2), fill=255)  # 画白色圆形
+    draw.ellipse((0, 0, magnified_radii * 2, magnified_radii * 2),
+                 fill=255)  # 画白色圆形
 
     # 画4个角（将整圆分离为4个部分）
     magnified_alpha_width = image_width * magnify_time
     magnified_alpha_height = image_height * magnify_time
-    alpha = Image.new("L", (magnified_alpha_width, magnified_alpha_height), 255)
-    alpha.paste(circle.crop((0, 0, magnified_radii, magnified_radii)), (0, 0))  # 左上角
+    alpha = Image.new("L", (magnified_alpha_width,
+                      magnified_alpha_height), 255)
+    alpha.paste(circle.crop(
+        (0, 0, magnified_radii, magnified_radii)), (0, 0))  # 左上角
     alpha.paste(
         circle.crop((magnified_radii, 0, magnified_radii * 2, magnified_radii)),
         (magnified_alpha_width - magnified_radii, 0),
     )  # 右上角
     alpha.paste(
         circle.crop(
-            (magnified_radii, magnified_radii, magnified_radii * 2, magnified_radii * 2)
+            (magnified_radii, magnified_radii,
+             magnified_radii * 2, magnified_radii * 2)
         ),
         (
             magnified_alpha_width - magnified_radii,
@@ -1747,24 +1721,13 @@ def combine_img_vertical(left_text: str, right_text, font_size: int = FONT_SIZE)
     return base64.b64encode(buffer.getvalue()).decode()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-#--AI CHAT--------------------------------------------------------------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
-
+# --AI CHAT--------------------------------------------------------------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
 uid = '1'
+
+
 def chatAI(text='hello'):
     try:
-    #TULING_KEY = '059f9782bab24de6a63d4083590a803b'  7c8cdb56b0dc4450a8deef30a496bd4c
+        # TULING_KEY = '059f9782bab24de6a63d4083590a803b'  7c8cdb56b0dc4450a8deef30a496bd4c
         apikey = '059f9782bab24de6a63d4083590a803b'
         api_url = 'http://www.tuling123.com/openapi/api'
         data = {'key': apikey, 'info': text}
@@ -1775,36 +1738,46 @@ def chatAI(text='hello'):
         return "error_chatAI"
 
 
-
-
-#-- yuban10703 -------------------------------------------------------------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
-def getYubanPic(tags, pon = "0"):
+# -- yuban10703 -------------------------------------------------------------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
+def getYubanPic(tags, pon="0"):
     try:
-        #0:safe,1:nos,2:all
-        api_url = 'https://setu.yuban10703.xyz/setu?r18='+ str(pon) +'&num=1&tags=' + tags
+        # 0:safe,1:nos,2:all
+        api_url = 'https://setu.yuban10703.xyz/setu?r18=' + \
+            str(pon) + '&num=1&tags=' + tags
         #data = {'r18': 0, 'num': 1, "tags":[]}
         req = requests.get(api_url).text
+
         if(json.loads(req)["detail"] and json.loads(req)["detail"][0] == "色"):
-            return json.loads(req)["detail"]
+            llolo_url = 'https://api.lolicon.app/setu/v2?size=original&?r18=' + \
+                str(pon) + '&num=1&keyword=' + "黑丝"
+            req2222 = requests.get(llolo_url).text
+            datas22 = json.loads(req2222)["data"]
+            if len(datas22) <= 0:
+                return json.loads(req)["detail"]
+            else:
+                dataatata22 = datas22[0]
+                picOriginalUrl_Msg222 = dataatata22["urls"]["original"].replace(
+                    "i.pixiv.cat", "i.pixiv.re")
+                # print("//////====>picOriginalUrl_Msg=> " + str(picOriginalUrl_Msg222))
+                return picOriginalUrl_Msg222
         else:
             datas = json.loads(req)["data"]
             dataatata = datas[0]
-            picOriginalUrl=dataatata["urls"]["original"]
-            picLargeUrl = dataatata["urls"]["large"].replace("_webp", "").replace("i.pximg.net", "i.pixiv.re")
-            picMediumUrl = dataatata["urls"]["medium"].replace("_webp", "").replace("i.pximg.net", "i.pixiv.re")
-            picOriginalUrl_Msg = dataatata["urls"]["original"].replace("i.pximg.net", "i.pixiv.re")
+            picOriginalUrl = dataatata["urls"]["original"]
+            picLargeUrl = dataatata["urls"]["large"].replace(
+                "_webp", "").replace("i.pximg.net", "i.pixiv.re")
+            picMediumUrl = dataatata["urls"]["medium"].replace(
+                "_webp", "").replace("i.pximg.net", "i.pixiv.re")
+            picOriginalUrl_Msg = dataatata["urls"]["original"].replace(
+                "i.pximg.net", "i.pixiv.re")
 
             #print("//////====>picOriginalUrl_Msg=> " + str(picMediumUrl))
             return picOriginalUrl_Msg
     except Exception as e:
-        return "获取图片出错===>" + str (e)+" tags "+tags+" pn "+pon
+        return "获取图片出错===>" + str(e)+" tags "+tags+" pn "+pon
 
 
-
-
-
-
-#----------------RECIVE-------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
+# ----------------RECIVE-------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
 @bot.on_group_msg
 @deco.ignore_botself
 @deco.these_msgtypes('TextMsg')
@@ -1813,14 +1786,13 @@ def group(ctx: GroupMsg):
     global dataCiliGroupData
     global dataSetuGroupData
     global nReciveTimes
-    
+
     global bGameStarted
     global bSaoLeiStart
     global action_stack
     global status
     global mt
     global nXXXCount
-
 
     strGID = str(ctx.FromGroupId)
     strCont = ctx.Content
@@ -1829,7 +1801,7 @@ def group(ctx: GroupMsg):
         return 1
     nReciveTimes = nReciveTimes + 1
     #logger.success('nReciveTimes= ' + str(nReciveTimes))
-    
+
     if random.random() < 0.0001:
         reeee = chs2yin(strCont, 0)
         action.sendGroupText(ctx.FromGroupId, reeee)
@@ -1857,16 +1829,17 @@ def group(ctx: GroupMsg):
         action.sendGroupText(ctx.FromGroupId, "本群色图已开启", ctx.FromUserId)
 
 
-#clici
+# clici
     if strCont.startswith("磁力搜"):
         bbb = False
         try:
             bbb = dataCiliGroupData[strGID]
-        except :
+        except:
             bbb = False
 
         if bbb == False:
-            action.sendGroupText(ctx.FromGroupId, "磁力关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
+            action.sendGroupText(
+                ctx.FromGroupId, "磁力关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
             return 1
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
@@ -1879,7 +1852,7 @@ def group(ctx: GroupMsg):
             strRRqq = ciliSou(strSs, nMMM)
             action.sendGroupText(ctx.FromGroupId, strRRqq)
 
-#AIAI 
+# AIAI
     if strCont.startswith("小说续写") or strCont.startswith("续写") or strCont.startswith("小说续写"):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
@@ -1896,7 +1869,7 @@ def group(ctx: GroupMsg):
         else:
             action.sendGroupText(ctx.FromGroupId, "输入错误!!!!!!")
 
-#垃圾分类============================================================================
+# 垃圾分类============================================================================
     if strCont.startswith("垃圾分类"):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) >= 2:
@@ -1908,7 +1881,7 @@ def group(ctx: GroupMsg):
             strRRqq123 = "这个垃圾=> "+asdas+" " + jsjsjs["sort"]
             action.sendGroupText(ctx.FromGroupId, strRRqq123)
 
-#PORNHUB PIC---------------------------------------------------------------------------------------
+# PORNHUB PIC---------------------------------------------------------------------------------------
     if strCont.startswith("ph ") or strCont.startswith("作图 ") or strCont.startswith("做图 "):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) >= 3:
@@ -1919,8 +1892,9 @@ def group(ctx: GroupMsg):
                 if args[3] == "1":
                     func = combine_img_vertical
             picBase64Buf = func(left, right)
-            action.sendGroupPic(ctx.FromGroupId, picBase64Buf = picBase64Buf, content = "OK!!!!", atUser = ctx.FromUserId)
-        else :
+            action.sendGroupPic(ctx.FromGroupId, picBase64Buf=picBase64Buf,
+                                content="OK!!!!", atUser=ctx.FromUserId)
+        else:
             action.sendGroupText(ctx.FromGroupId, "至少发两个词语!!!!!!!")
 # WIKI------------------------------------------
     if strCont.startswith("找梗 ") or strCont.startswith("百度一下 ") or strCont.startswith("梗 "):
@@ -1928,9 +1902,11 @@ def group(ctx: GroupMsg):
         if len(args) == 2:
             jikidata = jkjk.check(args[1])
             if jikidata["error"] == 0:
-                action.sendGroupText(ctx.FromGroupId, "\n"+jikidata["title"]+"\n"+jikidata["res"], ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "\n"+jikidata["title"]+"\n"+jikidata["res"], ctx.FromUserId)
             else:
-                action.sendGroupText(ctx.FromGroupId, "\n"+"查询错误 ERROR 机器人即将爆炸!!!!!!!!!!!!", ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "\n"+"查询错误 ERROR 机器人即将爆炸!!!!!!!!!!!!", ctx.FromUserId)
 # QR CODE------------------------------
     if strCont.startswith("二维码制作 ") or strCont.startswith("qr "):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -1938,16 +1914,20 @@ def group(ctx: GroupMsg):
             index = random.randint(1, 40)
             strWords = args[1]
             if is_contain_chinese(strWords):
-                action.sendGroupText(ctx.FromGroupId, "\n"+"不能包含中文!!!!!!!!!!!!", ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "\n"+"不能包含中文!!!!!!!!!!!!", ctx.FromUserId)
             else:
                 #strWord2 = to_unicode(strWords)
                 try:
-                    myqr.run(words = strWords, colorized = True, save_name = "./QQRR.png")
+                    myqr.run(words=strWords, colorized=True,
+                             save_name="./QQRR.png")
                     with open('./QQRR.png', 'rb') as f:  # 以二进制读取图片
                         data = f.read()
-                        encodestr = base64.b64encode(data).decode() # 得到 byte 编码的数据
-                        action.sendGroupPic(ctx.FromGroupId, picBase64Buf = encodestr, content = "OK!!!!", atUser = ctx.FromUserId)
-                        
+                        encodestr = base64.b64encode(
+                            data).decode()  # 得到 byte 编码的数据
+                        action.sendGroupPic(
+                            ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+
                 except:
                     print("二维码制作 Error")
 
@@ -1963,7 +1943,8 @@ def group(ctx: GroupMsg):
                 except:
                     print("摩斯码 Error")
             else:
-                action.sendGroupText(ctx.FromGroupId, "\n"+"不能包含中文!!!!!!!!!!!!", ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "\n"+"不能包含中文!!!!!!!!!!!!", ctx.FromUserId)
 
 
 # 加密通话 ------------------------------
@@ -1975,37 +1956,49 @@ def group(ctx: GroupMsg):
                 strR = jiemi(strWords)
                 action.sendGroupText(ctx.FromGroupId, strR, ctx.FromUserId)
             except:
-                action.sendGroupText(ctx.FromGroupId, "解密 Error", ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "解密 Error", ctx.FromUserId)
         else:
-           action.sendGroupText(ctx.FromGroupId, "\n"+"输入错误!!!!!!!!!!!!", ctx.FromUserId)
+            action.sendGroupText(ctx.FromGroupId, "\n" +
+                                 "输入错误!!!!!!!!!!!!", ctx.FromUserId)
+
+# 买家秀 ------------------------------
     if strCont.find("买家秀") > -1:
         indexInt = random.randint(1, 6)
         taobaoUrl = "https://api.uomg.com/api/rand.img3"
         if indexInt == 1:
             taobaoUrl = "https://api.ghser.com/tao"
-        elif indexInt == 2: 
+        elif indexInt == 2:
             taobaoUrl = "https://api.uomg.com/api/rand.img3?sort=胖次猫"
-        else :
+        else:
             taobaoUrl = "https://api.uomg.com/api/rand.img3?sort=七了个三"
-        action.sendGroupPic(ctx.FromGroupId, picUrl = taobaoUrl,content = "OK!!!!", atUser = ctx.FromUserId)
+        action.sendGroupPic(ctx.FromGroupId, picUrl=taobaoUrl,
+                            content="OK!!!!", atUser=ctx.FromUserId)
 
+
+# 幻影坦克 ------------------------------
     if strCont.find("幻影坦克") > -1:
         taobaoUrl = getYubanPic("")
-        maijiaxiu(taobaoUrl)
+        SavePic(taobaoUrl)
         f1 = 'tttkkk.png'  # 上层
         f2 = 'MJX.png'  # 下层
         savePath = r'T12.png'  # 保存路径
         try:
             base64_str = make(f1, f2, savePath)
-            action.sendGroupPic(ctx.FromGroupId, picBase64Buf = base64_str, content = "OK!!!!", atUser = ctx.FromUserId)
+            action.sendGroupPic(ctx.FromGroupId, picBase64Buf=base64_str,
+                                content="OK!!!!", atUser=ctx.FromUserId)
         except:
-            action.sendGroupText(ctx.FromGroupId, "\n"+"合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
+            action.sendGroupText(ctx.FromGroupId, "\n" +
+                                 "合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
+
+# 讲个笑话 ------------------------------
     if strCont.find("讲个笑话") > -1:
         urlll = "https://api.ghser.com/xiaohua"
         res = requests.get(urlll)
-        #print("===>"+res.text)
+        # print("===>"+res.text)
         action.sendGroupText(ctx.FromGroupId, res.text)
-        
+
+# 狗屁不通 ------------------------------
     if strCont.find("狗屁不通") > -1:
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
@@ -2013,7 +2006,6 @@ def group(ctx: GroupMsg):
             aaa = GPBT(strWords)
             action.sendGroupText(ctx.FromGroupId, aaa)
 
-            
     if strCont == "开始流浪":
         if bGameStarted == False:
             bGameStarted = True
@@ -2033,7 +2025,8 @@ def group(ctx: GroupMsg):
                         strRef = reflush_screen()
                         action.sendGroupText(ctx.FromGroupId, strRef)
                 except:
-                    action.sendGroupText(ctx.FromGroupId, "输入数字错误! 比如回复 继续游戏 1")
+                    action.sendGroupText(
+                        ctx.FromGroupId, "输入数字错误! 比如回复 继续游戏 1")
             else:
                 action.sendGroupText(ctx.FromGroupId, "输入多了!! 比如回复 继续游戏 1")
         else:
@@ -2042,28 +2035,29 @@ def group(ctx: GroupMsg):
         bGameStarted = False
         action_stack = [[]]
         status = {
-            "Money":5,
-            "HP":100,
-            "Debt":50000,
-            "Message":"",
-            "ContinueWorkTime":0
-            }
+            "Money": 5,
+            "HP": 100,
+            "Debt": 50000,
+            "Message": "",
+            "ContinueWorkTime": 0
+        }
 
         action.sendGroupText(ctx.FromGroupId, "游戏关闭")
-
 
     if strCont == "开始扫雷":
         if bSaoLeiStart == False:
             bSaoLeiStart = True
             mt = MineTable()
             strShow = mt.printShow()
-            strShow += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + str(mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
+            strShow += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + \
+                str(mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
             action.sendGroupText(ctx.FromGroupId, strShow)
         else:
             strShow = "游戏正在进行中, 不能多开\n"
             if mt != 0:
                 strShow += mt.printShow()
-                strShow += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + str(mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
+                strShow += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + str(
+                    mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
             action.sendGroupText(ctx.FromGroupId, strShow)
     if strCont.startswith("继续扫雷"):
         if bSaoLeiStart == True:
@@ -2074,7 +2068,8 @@ def group(ctx: GroupMsg):
                 try:
                     # 用户继续输入, 先判断输入格式
                     if not (re.match(r'^\d+,\d+', line_input)):
-                        action.sendGroupText(ctx.FromGroupId, "输入错了!! 比如回复 继续扫雷 1,2")
+                        action.sendGroupText(
+                            ctx.FromGroupId, "输入错了!! 比如回复 继续扫雷 1,2")
                     else:
                         strResult = ""
                         line, field = eval(line_input)
@@ -2089,14 +2084,16 @@ def group(ctx: GroupMsg):
                             strResult = ('---!!!炸了,你输了!!!---\n')
                             mt.gameOverMine()
                             for item in mt.resultTable:
-                               strResult += (str(item) + '\n')
+                                strResult += (str(item) + '\n')
                         else:
                             strResult = mt.printShow()
-                            strResult += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + str(mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
+                            strResult += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + str(
+                                mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
                         action.sendGroupText(ctx.FromGroupId, strResult)
                 except error:
                     print("输入数字错误输入数字错误" + str(error))
-                    action.sendGroupText(ctx.FromGroupId, "输入数字错误! 比如回复 继续扫雷 1,2")
+                    action.sendGroupText(
+                        ctx.FromGroupId, "输入数字错误! 比如回复 继续扫雷 1,2")
             else:
                 action.sendGroupText(ctx.FromGroupId, "输入错了!! 比如回复 继续扫雷 1,2")
         else:
@@ -2104,29 +2101,42 @@ def group(ctx: GroupMsg):
     if strCont == "gg":
         bSaoLeiStart = False
         action.sendGroupText(ctx.FromGroupId, "扫雷关闭")
-        
+
+    if strCont.find("骂人") > -1:
+        urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
+        html = requests.get(urlMMM)
+        strConnn = str(html.text)
+        action.sendGroupText(ctx.FromGroupId, content=strConnn)
+        vocccPath12 = text_to_speech(strConnn)
+        action.sendGroupVoice(
+            ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
+
     if strCont.startswith("@jj-姬器人"):
         if strCont.find("说说") > -1 or strCont.find("喊一声") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 vocccPath = text_to_speech(args[2])
-                action.sendGroupVoice(ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                action.sendGroupVoice(
+                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             elif len(args) == 2:
                 vocccPath = text_to_speech(args[1])
-                
-                action.sendGroupVoice(ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
-            else:
-                action.sendGroupText(ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
 
-    if strCont.startswith("来张美图")  or strCont.startswith("来张色图") or strCont.startswith("来张图"):
+                action.sendGroupVoice(
+                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+            else:
+                action.sendGroupText(
+                    ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
+
+    if strCont.startswith("来张美图") or strCont.startswith("来张色图") or strCont.startswith("来张图"):
         #print("????????????" + strCont)#
         bbbst = False
         try:
             bbbst = dataSetuGroupData[strGID]
-        except :
+        except:
             bbbst = False
         if bbbst == False:
-            action.sendGroupText(ctx.FromGroupId, "图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
+            action.sendGroupText(
+                ctx.FromGroupId, "图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
             return 1
 
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2137,15 +2147,17 @@ def group(ctx: GroupMsg):
             aaa = getYubanPic(args[1], "0")
         elif len(args) == 3:
             aaa = getYubanPic(args[1], args[2])
-            
+
         if aaa[0] != "h":
             action.sendGroupText(ctx.FromGroupId, "出错了==>"+aaa)
         else:
-            maijiaxiu(aaa)
+            SavePic(aaa)
             with open('./MJX.png', 'rb') as f:  # 以二进制读取图片
                 data = f.read()
-                encodestr = base64.b64encode(data).decode() # 得到 byte 编码的数据
-                action.sendGroupPic(ctx.FromGroupId, picBase64Buf = encodestr, content = "OK!!!!", atUser = ctx.FromUserId)
+                encodestr = base64.b64encode(data).decode()  # 得到 byte 编码的数据
+                action.sendGroupPic(
+                    ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+
 
 @bot.on_group_msg
 @deco.ignore_botself
@@ -2156,12 +2168,22 @@ def receive_AT_group_msg(ctx: GroupMsg):
     strCont = objCtx['Content']
     atUserID = objCtx['UserID'][0]
     strGID = str(ctx.FromGroupId)
+    # print("......" + str(ctx))
 
-    #print("#asdasda==" + str(strCont.find("菜单")))
+    # print("#asdasda==" + str(strCont.find("菜单")))
+    if strCont.find("骂") > -1 and atUserID != 157199224 and atUserID != 1973381512:
+        urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
+        html = requests.get(urlMMM)
+        strConnn = str(html.text)
+        action.sendGroupText(
+            ctx.FromGroupId, content=strConnn, atUser=atUserID)
+        vocccPath12 = text_to_speech(strConnn)
+        action.sendGroupVoice(
+            ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
 
     if(atUserID == 157199224):
         if strCont.find("菜单") > -1 or strCont.find("帮助") > -1:
-            
+
             struuuu = '''
             发送[买家秀], 则回复好看的买家秀图=\n
             发送[磁力搜 搜索内容],则回复磁力链接=\n
@@ -2186,10 +2208,11 @@ def receive_AT_group_msg(ctx: GroupMsg):
             bbbstat = False
             try:
                 bbbstat = dataSetuGroupData[strGID]
-            except :
+            except:
                 bbbstat = False
             if bbbstat == False:
-                action.sendGroupText(ctx.FromGroupId, "AT图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "AT图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
                 return 1
 
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2204,12 +2227,14 @@ def receive_AT_group_msg(ctx: GroupMsg):
             if aaa[0] != "h":
                 action.sendGroupText(ctx.FromGroupId, "出错了==>"+aaa)
             else:
-                maijiaxiu(aaa)
+                SavePic(aaa)
                 with open('./MJX.png', 'rb') as f:  # 以二进制读取图片
                     data = f.read()
-                    encodestr = base64.b64encode(data).decode() # 得到 byte 编码的数据
-                    action.sendGroupPic(ctx.FromGroupId, picBase64Buf = encodestr, content = "OK!!!!", atUser = ctx.FromUserId)
-    
+                    encodestr = base64.b64encode(
+                        data).decode()  # 得到 byte 编码的数据
+                    action.sendGroupPic(
+                        ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+
         elif strCont.find("隐藏功能") > -1:
             struuuu = '''
                         发送[脱衣 加一个图片],回复指定图片生成的AI脱衣图片(deamtime源码)\n
@@ -2222,38 +2247,54 @@ def receive_AT_group_msg(ctx: GroupMsg):
             taobaoUrl = "https://api.uomg.com/api/rand.img3"
             if indexInt == 1:
                 taobaoUrl = "https://api.ghser.com/tao"
-            elif indexInt == 2: 
+            elif indexInt == 2:
                 taobaoUrl = "https://api.uomg.com/api/rand.img3?sort=胖次猫"
-            else :
+            else:
                 taobaoUrl = "https://api.uomg.com/api/rand.img3?sort=七了个三"
-            action.sendGroupPic(ctx.FromGroupId, picUrl = taobaoUrl,content = "OK!!!!", atUser = ctx.FromUserId)
-            
+            action.sendGroupPic(ctx.FromGroupId, picUrl=taobaoUrl,
+                                content="OK!!!!", atUser=ctx.FromUserId)
+
         elif strCont.find("加密") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 str111 = encoder(args[2])
                 action.sendGroupText(ctx.FromGroupId, str111)
             else:
-                action.sendGroupText(ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
-        elif strCont.find("解密") > -1 or strCont.find("翻译翻译") > -1 :
+                action.sendGroupText(
+                    ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
+        elif strCont.find("解密") > -1 or strCont.find("翻译翻译") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 str222 = jiemi(args[2])
                 action.sendGroupText(ctx.FromGroupId, str222)
             else:
-                action.sendGroupText(ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
         elif strCont.find("说说") > -1 or strCont.find("喊一声") > -1 or strCont.find("说一声") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 vocccPath = text_to_speech(args[2])
 
-                action.sendGroupVoice(ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                action.sendGroupVoice(
+                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             elif len(args) == 2:
                 vocccPath = text_to_speech(args[1])
-                
-                action.sendGroupVoice(ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+
+                action.sendGroupVoice(
+                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             else:
-                action.sendGroupText(ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
+                action.sendGroupText(
+                    ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
+
+        elif strCont.find("骂人") > -1:
+            urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
+            html = requests.get(urlMMM)
+            strConnn = str(html.text)
+            action.sendGroupText(ctx.FromGroupId, content=strConnn)
+            vocccPath12 = text_to_speech(strConnn)
+            action.sendGroupVoice(
+                ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
+            #
         else:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             text = "ERROR!!! "
@@ -2261,19 +2302,18 @@ def receive_AT_group_msg(ctx: GroupMsg):
                 text = chatAI(args[1])
                 try:
                     vocccPath = text_to_speech(text)
-                    action.sendGroupVoice(ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
-                except :
-                    action.sendGroupText(ctx.FromGroupId, "语音失败,发送文字:"+text, ctx.FromUserId)
-
-        
-    
+                    action.sendGroupVoice(
+                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                except:
+                    action.sendGroupText(
+                        ctx.FromGroupId, "语音失败,发送文字:"+text, ctx.FromUserId)
 
 
 @bot.on_group_msg
 @deco.ignore_botself
 @deco.these_msgtypes('PicMsg')
 def receive_PIC_group_msg(ctx: GroupMsg):
-    
+
     global nAAAAAAAA
     global nBBBBBB
 
@@ -2283,9 +2323,8 @@ def receive_PIC_group_msg(ctx: GroupMsg):
     try:
         strCont = objCtx['Content']
         picArr = objCtx['GroupPic']
-    except :
+    except:
         strCont = ""
-    
 
     nIndex = 1
     if strCont.find("幻影坦克") > -1 and len(picArr) == 2:
@@ -2306,10 +2345,11 @@ def receive_PIC_group_msg(ctx: GroupMsg):
         savePath = r'T1.png'  # 保存路径
         try:
             base64_str = make(f1, f2, savePath)
-            action.sendGroupPic(ctx.FromGroupId, picBase64Buf = base64_str, content = "OK!!!!", atUser = ctx.FromUserId)       
+            action.sendGroupPic(ctx.FromGroupId, picBase64Buf=base64_str,
+                                content="OK!!!!", atUser=ctx.FromUserId)
         except:
-            action.sendGroupText(ctx.FromGroupId, "\n"+"合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
-        
+            action.sendGroupText(ctx.FromGroupId, "\n" +
+                                 "合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
 
     elif strCont.startswith("333444111脱衣") and len(picArr) == 1:
         nAAAAAAAA = nAAAAAAAA + 1
@@ -2317,16 +2357,18 @@ def receive_PIC_group_msg(ctx: GroupMsg):
         if strCont == "脱衣":
             strUrlqq = picArr[0]["Url"]
             html = requests.get(strUrlqq)
-            with open('./222111/'+ str(nAAAAAAAA) +'.png', 'wb') as file:
+            with open('./222111/' + str(nAAAAAAAA) + '.png', 'wb') as file:
                 file.write(html.content)
-            strADB = "./dreampower run --input 222111/"+ str(nAAAAAAAA) +".png --output 222111/" + str(nAAAAAAAA) + "ot.png --cpu --n-cores 4 --experimental-color-transfer --auto-resize --nsize 1 --bsize 1.6 --hsize 1 --vsize 1"
+            strADB = "./dreampower run --input 222111/" + str(nAAAAAAAA) + ".png --output 222111/" + str(
+                nAAAAAAAA) + "ot.png --cpu --n-cores 4 --experimental-color-transfer --auto-resize --nsize 1 --bsize 1.6 --hsize 1 --vsize 1"
             os.system(strADB)
 
-            print (time.strftime("FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
-            with open("./222111/"+ str(nAAAAAAAA) +"ot.png", 'rb') as f:  # 以二进制读取图片
+            print(time.strftime("FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
+            with open("./222111/" + str(nAAAAAAAA) + "ot.png", 'rb') as f:  # 以二进制读取图片
                 data = f.read()
-                encodestr = base64.b64encode(data).decode() # 得到 byte 编码的数据
-                action.sendGroupPic(ctx.FromGroupId, picBase64Buf = encodestr, content = "OK!!!!", atUser = ctx.FromUserId)       
+                encodestr = base64.b64encode(data).decode()  # 得到 byte 编码的数据
+                action.sendGroupPic(
+                    ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
 
         else:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2345,61 +2387,81 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 
                 strUrlqq = picArr[0]["Url"]
                 html = requests.get(strUrlqq)
-                with open('./11/'+ str(nAAAAAAAA) +'.png', 'wb') as file:
+                with open('./11/' + str(nAAAAAAAA) + '.png', 'wb') as file:
                     file.write(html.content)
-                
-                strADB = "./dreampower run --input 11/"+ str(nAAAAAAAA) +".png --output 11/" + str(nAAAAAAAA) + "ot.png --cpu --n-cores 4 "+ strTypeaa + strAAAA +"--bsize "+ args[2] +"  --nsize "+ args[3] +" --vsize "+ args[4] +" --hsize "+ args[5]
+
+                strADB = "./dreampower run --input 11/" + str(nAAAAAAAA) + ".png --output 11/" + str(nAAAAAAAA) + "ot.png --cpu --n-cores 4 " + \
+                    strTypeaa + strAAAA + "--bsize " + \
+                    args[2] + "  --nsize " + args[3] + \
+                    " --vsize " + args[4] + " --hsize " + args[5]
                 os.system(strADB)
 
-                print (time.strftime("FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
-                with open("./11/"+ str(nAAAAAAAA) +"ot.png", 'rb') as f:  # 以二进制读取图片
+                print(time.strftime(
+                    "FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
+                with open("./11/" + str(nAAAAAAAA) + "ot.png", 'rb') as f:  # 以二进制读取图片
                     data = f.read()
-                    encodestr = base64.b64encode(data).decode() # 得到 byte 编码的数据
-                    action.sendGroupPic(ctx.FromGroupId, picBase64Buf = encodestr, content = "OK!!!!", atUser = ctx.FromUserId)       
-                    
+                    encodestr = base64.b64encode(
+                        data).decode()  # 得到 byte 编码的数据
+                    action.sendGroupPic(
+                        ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+
             else:
-                action.sendGroupText(ctx.FromGroupId, "参数少了!需要: 脱衣 图片缩放类型 Boob大小 Ru头大小 Vagina大小 yin毛大小 是否使用原图颜色 \n 比如: 脱衣 1 1.5 1 1 0.9 1", ctx.FromUserId)
-                
-                
+                action.sendGroupText(
+                    ctx.FromGroupId, "参数少了!需要: 脱衣 图片缩放类型 Boob大小 Ru头大小 Vagina大小 yin毛大小 是否使用原图颜色 \n 比如: 脱衣 1 1.5 1 1 0.9 1", ctx.FromUserId)
+
     elif strCont.startswith("脱衣") and len(picArr) == 1:
         nAAAAAAAA = nAAAAAAAA + 1
         strUrlqq = picArr[0]["Url"]
         html = requests.get(strUrlqq)
-        with open('./'+ str(nAAAAAAAA) +'.png', 'wb') as file:
+        with open('./' + str(nAAAAAAAA) + '.png', 'wb') as file:
             file.write(html.content)
-            
-            strADB = "python3 main.py -i "+ str(nAAAAAAAA) +'.png -o output_' + str(nAAAAAAAA) +'.png'
+
+            strADB = "python3 main.py -i " + \
+                str(nAAAAAAAA) + '.png -o output_' + str(nAAAAAAAA) + '.png'
             os.system(strADB)
-            
-            with open("./output_"+ str(nAAAAAAAA) +".png", 'rb') as f:  # 以二进制读取图片
+
+            with open("./output_" + str(nAAAAAAAA) + ".png", 'rb') as f:  # 以二进制读取图片
                 data = f.read()
-                encodestr = base64.b64encode(data).decode() # 得到 byte 编码的数据
-                action.sendGroupPic(ctx.FromGroupId, picBase64Buf = encodestr, content = "OK!!!!", atUser = ctx.FromUserId)       
+                encodestr = base64.b64encode(data).decode()  # 得到 byte 编码的数据
+                action.sendGroupPic(
+                    ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+
+    elif strCont.startswith("颜值") and len(picArr) == 1:
+        strUrlqqYY = picArr[0]["Url"]
+        SavePic2222(strUrlqqYY)
+        img = Image.open("./MJX2.png").convert("RGB")
+        img.save("./MJX211.jpg", format='JPEG')
+        with open('./MJX211.jpg', 'rb') as f:  # 以二进制读取图片
+            data = f.read()
+            strB64 = base64.b64encode(data).decode()  # 得到 byte 编码的数据
+            strresrsrs = CheckYYYY(strB64)
+            action.sendGroupText(ctx.FromGroupId, strresrsrs, ctx.FromUserId)
+
+
+@bot.on_event
+def REV_EVENT_MSG(ctx: EventMsg):
+    a = 12
+    # print("事件消息===>" + str(ctx.EventData)+" "+  str(ctx.EventMsg))
 
 
 
 @bot.when_disconnected(every_time=True)
 def disconnected():
-    o=0
-    #print('socket断开~')
-    #bot.run()
+    o = 0
+    # print('socket断开~')
+    # bot.run()
 
 
 @bot.when_connected(every_time=True)
 def connected():
-    o=0
-    #print('socket连接成功~')
-    
-    
+    o = 0
+    # print('socket连接成功~')
+
+
 if __name__ == '__main__':
     # ---------------------------------------------------------------------------------
-    try :
+    try:
         print("qidong")
         bot.run()
     except Exception as error:
         print("============>"+str(error))
-
-    
-
-
-
