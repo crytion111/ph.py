@@ -14,6 +14,7 @@ from io import BytesIO
 import copy
 from pydantic import BaseModel
 from botoy import Botoy, Action, FriendMsg, GroupMsg, EventMsg
+from botoy.sugar import Text
 import botoy.decorators as deco
 from retrying import retry
 from tinydb import TinyDB, Query
@@ -28,6 +29,7 @@ import re
 import json
 import os
 import io
+import sys
 from PIL import Image, ImageDraw, ImageFont
 import urllib.parse
 from MyQR import myqr
@@ -40,6 +42,9 @@ import numpy as np
 import jieba
 import jieba.posseg as pseg
 jieba.setLogLevel(20)
+import cpuinfo
+import psutil
+import datetime
 
 bot = Botoy(qq=157199224, log=False)
 action = Action(157199224)
@@ -61,6 +66,113 @@ for x in wilteList:
     strID = str(x)
     dataCiliGroupData[strID] = True
     dataSetuGroupData[strID] = True
+
+
+bBotClose = False
+
+
+# -------------------------------------------------------------
+
+
+
+
+
+
+def get_cpu_info():
+    info = cpuinfo.get_cpu_info()  # 获取CPU型号等
+    cpu_count = psutil.cpu_count(logical=False)  # 1代表单核CPU，2代表双核CPU
+    xc_count = psutil.cpu_count()  # 线程数，如双核四线程
+    cpu_percent = round((psutil.cpu_percent()), 2)  # cpu使用率
+    try:
+        model = info["hardware_raw"]  # cpu型号
+    except Exception:
+        model = info["brand_raw"]  # cpu型号
+    try:  # 频率
+        freq = info["hz_actual_friendly"]
+    except Exception:
+        freq = "null"
+    cpu_info = (model, freq, info["arch"], cpu_count, xc_count, cpu_percent)
+    return cpu_info
+
+
+def get_memory_info():
+    memory = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    total_nc = round((float(memory.total) / 1024 / 1024 / 1024), 3)  # 总内存
+    used_nc = round((float(memory.used) / 1024 / 1024 / 1024), 3)  # 已用内存
+    available_nc = round((float(memory.available) / 1024 / 1024 / 1024), 3)  # 空闲内存
+    percent_nc = memory.percent  # 内存使用率
+    swap_total = round((float(swap.total) / 1024 / 1024 / 1024), 3)  # 总swap
+    swap_used = round((float(swap.used) / 1024 / 1024 / 1024), 3)  # 已用swap
+    swap_free = round((float(swap.free) / 1024 / 1024 / 1024), 3)  # 空闲swap
+    swap_percent = swap.percent  # swap使用率
+    men_info = (
+        total_nc,
+        used_nc,
+        available_nc,
+        percent_nc,
+        swap_total,
+        swap_used,
+        swap_free,
+        swap_percent,
+    )
+    return men_info
+
+
+def uptime():
+    now = time.time()
+    boot = psutil.boot_time()
+    boottime = datetime.datetime.fromtimestamp(boot).strftime("%Y-%m-%d %H:%M:%S")
+    nowtime = datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M:%S")
+    up_time = str(
+        datetime.datetime.utcfromtimestamp(now).replace(microsecond=0)
+        - datetime.datetime.utcfromtimestamp(boot).replace(microsecond=0)
+    )
+    alltime = (boottime, nowtime, up_time)
+    return alltime
+
+
+def sysinfo():
+    cpu_info = get_cpu_info()
+    mem_info = get_memory_info()
+    up_time = uptime()
+    msg = (
+        "CPU型号:{0}\r\n频率:{1}\r\n架构:{2}\r\n核心数:{3}\r\n线程数:{4}\r\n负载:{5}%\r\n{6}\r\n"
+        "总内存:{7}G\r\n已用内存:{8}G\r\n空闲内存:{9}G\r\n内存使用率:{10}%\r\n{6}\r\n"
+        "swap:{11}G\r\n已用swap:{12}G\r\n空闲swap:{13}G\r\nswap使用率:{14}%\r\n{6}\r\n"
+        "开机时间:{15}\r\n当前时间:{16}\r\n已运行时间:{17}"
+    )
+    full_meg = msg.format(
+        cpu_info[0],
+        cpu_info[1],
+        cpu_info[2],
+        cpu_info[3],
+        cpu_info[4],
+        cpu_info[5],
+        "*" * 20,
+        mem_info[0],
+        mem_info[1],
+        mem_info[2],
+        mem_info[3],
+        mem_info[4],
+        mem_info[5],
+        mem_info[6],
+        mem_info[7],
+        up_time[0],
+        up_time[1],
+        up_time[2],
+    )
+    return full_meg
+
+
+
+
+
+
+
+
+
+
 
 
 # -------------------------------------------------------------
@@ -983,11 +1095,11 @@ def GPBT(strWords):
 
 def AIXXX(context):
     RUN_DEVICE = 'cpu'  # gpu 或 dml 或 cpu
-    MODEL_NAME = 'model/wangwen-2022-01-09'  # 模型名
-    WORD_NAME = 'model/wangwen-2022-01-09'  # 这个也修改
+    MODEL_NAME = 'model/wangwen-2022-02-15'  # 模型名
+    WORD_NAME = 'model/wangwen-2022-02-15'  # 这个也修改
     NUM_OF_RUNS = 1  # 写多少遍
-    LENGTH_OF_EACH = 200  # 每次写多少字
-    top_p = 0.8  # 这个的范围是 0 到 1。越大，变化越多。越小，生成效果越规矩。自己试试 0 和 0.5 和 1.0 的效果就知道了
+    LENGTH_OF_EACH = 220  # 每次写多少字
+    top_p = 0.75  # 这个的范围是 0 到 1。越大，变化越多。越小，生成效果越规矩。自己试试 0 和 0.5 和 1.0 的效果就知道了
     top_p_newline = 0.9
 
     ctx_len = 512
@@ -1009,7 +1121,7 @@ def AIXXX(context):
 
     vocab_size = len(word_table)
 
-    def train_dataset(): return None
+    train_dataset = lambda: None
     train_dataset.stoi = {v: int(k) for k, v in word_table.items()}
     train_dataset.itos = {int(k): v for k, v in word_table.items()}
     UNKNOWN_CHAR = train_dataset.stoi['\ue083']
@@ -1025,15 +1137,13 @@ def AIXXX(context):
             MODEL_NAME + '.onnx', sess_options=sess_options, providers=['DmlExecutionProvider'])
         rt_session.set_providers(['DmlExecutionProvider'])
     else:
-        model = GPT(GPTConfig(vocab_size, ctx_len, n_layer=n_layer,
-                    n_head=n_head, n_embd=n_embd, n_attn=n_attn, n_ffn=n_ffn))
+        model = GPT(GPTConfig(vocab_size, ctx_len, n_layer=n_layer, n_head=n_head, n_embd=n_embd, n_attn=n_attn, n_ffn=n_ffn))
         m2 = torch.load(MODEL_NAME + '.pth', map_location='cpu').state_dict()
         for i in range(n_layer):
             prefix = f'blocks.{i}.attn.'
             time_w = m2[prefix + 'time_w']
             time_alpha = m2[prefix + 'time_alpha']
             time_beta = m2[prefix + 'time_beta']
-            mask = m2[prefix + 'mask']
 
             TT = ctx_len
             T = ctx_len
@@ -1042,13 +1152,11 @@ def AIXXX(context):
             w = w[:, :-TT].reshape(-1, TT, 2 * TT - 1)
             w = w[:, :, TT-1:]
             w = w[:, :T, :T] * time_alpha[:, :, :T] * time_beta[:, :T, :]
-            w = w.masked_fill(mask[:T, :T] == 0, 0)
 
             m2[prefix + 'time_ww'] = w
             del m2[prefix + 'time_w']
             del m2[prefix + 'time_alpha']
             del m2[prefix + 'time_beta']
-            del m2[prefix + 'mask']
         if RUN_DEVICE == 'gpu':
             model = model.cuda()
         model.load_state_dict(m2)
@@ -1103,7 +1211,7 @@ def AIXXX(context):
             x = np.append(x, char)
             real_len += 1
 
-            if i % 10 == 9 or i == LENGTH_OF_EACH-1 or i < 10 or RUN_DEVICE != 'gpu':
+            if i % 2 == 1 or i == LENGTH_OF_EACH-1 or i < 10 or RUN_DEVICE != 'gpu':
                 completion = ''.join([train_dataset.itos[int(i)]
                                      for i in x[print_begin:real_len]])
                 strAllResult += completion.replace('\n', '\n  ')
@@ -1793,6 +1901,9 @@ def group(ctx: GroupMsg):
     global status
     global mt
     global nXXXCount
+    global bBotClose
+    if bBotClose:
+        return 1
 
     strGID = str(ctx.FromGroupId)
     strCont = ctx.Content
@@ -1829,6 +1940,11 @@ def group(ctx: GroupMsg):
         action.sendGroupText(ctx.FromGroupId, "本群色图已开启", ctx.FromUserId)
 
 
+#================================================
+    if strCont == "系统信息":
+        strSYSY = sysinfo()
+        # print(strSYSY)
+        action.sendGroupText(ctx.FromGroupId, strSYSY, ctx.FromUserId)
 # clici
     if strCont.startswith("磁力搜"):
         bbb = False
@@ -1863,7 +1979,12 @@ def group(ctx: GroupMsg):
             else:
                 action.sendGroupText(ctx.FromGroupId, "好的,我正在构思")
                 strSsss = args[1]
-                strres = AIXXX(strSsss)
+                strres = ""
+                try:
+                    strres = AIXXX(strSsss)
+                except Exception as eses: 
+                    strres = str(eses)
+                # strres = AIXXX(strSsss)
                 action.sendGroupText(ctx.FromGroupId, strres)
                 nXXXCount -= 1
         else:
@@ -2090,7 +2211,7 @@ def group(ctx: GroupMsg):
                             strResult += '雷区总数：' + str(mt.mineCount) + ' ; 剩余安全区总数: ' + str(
                                 mt.getLastGood()) + ' \n(继续游戏输入:"继续扫雷 x,y"/退出:"gg"): '
                         action.sendGroupText(ctx.FromGroupId, strResult)
-                except error:
+                except Exception as error:
                     print("输入数字错误输入数字错误" + str(error))
                     action.sendGroupText(
                         ctx.FromGroupId, "输入数字错误! 比如回复 继续扫雷 1,2")
@@ -2164,6 +2285,9 @@ def group(ctx: GroupMsg):
 @deco.these_msgtypes('AtMsg')
 def receive_AT_group_msg(ctx: GroupMsg):
     global dataSetuGroupData
+    global bBotClose
+    if bBotClose:
+        return 1
     objCtx = json.loads(ctx.Content)
     strCont = objCtx['Content']
     atUserID = objCtx['UserID'][0]
@@ -2198,9 +2322,14 @@ def receive_AT_group_msg(ctx: GroupMsg):
             发送[来张图 搜索内容],回复该内容的二次元图=\n
             发送[翻译翻译 拼音缩写],就能让机器翻译内容 比如 翻译翻译 yyds, 翻译永远滴神\n
             发送[小说续写 开头内容],就能让机器续写之后的内容, 比如 小说续写 群主挂了之后\n
-            只有以下两个功能需要@机器人,别的功能别自作主张@它=\n
+            发送[颜值检测 加图片],就能让机器人检测颜值\n
+            ==>只有以下两个功能需要@机器人,别的功能别自作主张@它=\n
             @机器人  可以和机器人对话=\n
             @机器人后回复 说说+内容,就能让机器人读出内容 比如@jj-姬器人 说说 你是傻逼=\n
+
+            =>怎么添加机器人到自己的群:\n
+            =>1:加机器人好友, 2:邀请它入群, 3:使用\n
+
             '''
             action.sendGroupText(ctx.FromGroupId, struuuu, ctx.FromUserId)
         # 模特 ------------------------------
@@ -2237,9 +2366,8 @@ def receive_AT_group_msg(ctx: GroupMsg):
 
         elif strCont.find("隐藏功能") > -1:
             struuuu = '''
-                        发送[脱衣 加一个图片],回复指定图片生成的AI脱衣图片(deamtime源码)\n
-                        发送[2脱衣 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)\n
-                        发送[美图 搜索内容 r18开关(0普通, 1r18, 2随机)],比如[美图 jk 1]=>回复jk的二次元r18图\n
+                        发送[脱衣 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)\n
+                        发送[来张图 搜索内容 r18开关(0普通, 1r18, 2随机)],比如[来张图 jk 1]=>回复jk的二次元r18图\n
                         '''
             action.sendGroupText(ctx.FromGroupId, struuuu, ctx.FromUserId)
         elif strCont.find("买家秀") > -1:
@@ -2316,6 +2444,9 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 
     global nAAAAAAAA
     global nBBBBBB
+    global bBotClose
+    if bBotClose:
+        return 1
 
     objCtx = json.loads(ctx.Content)
     strCont = ""
@@ -2440,8 +2571,47 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 
 @bot.on_event
 def REV_EVENT_MSG(ctx: EventMsg):
-    a = 12
-    # print("事件消息===>" + str(ctx.EventData)+" "+  str(ctx.EventMsg))
+    # a = 12
+    if ctx.EventMsg and ctx.EventMsg["Content"] != "群成员退出群聊事件" and ctx.EventMsg["Content"] != "某人进群事件" and ctx.EventMsg["Content"] != "群成员撤回消息事件" and ctx.EventMsg["Content"] != "好友事件状态(被同意添加好友/被拒绝添加好友)":
+        aaa = "事件消息===>" + str(ctx.EventData)+" "+  str(ctx.EventMsg)
+        action.sendFriendText(1973381512, aaa)
+
+@bot.on_friend_msg
+def REV_FRD_MSG(ctx: FriendMsg):
+    global bBotClose
+    
+    nSendID = ctx.FromUin
+    strConFrd = ctx.Content
+    if ctx.FromUin == 1973381512:
+        if strConFrd.startswith("发群消息"):
+            args = [i.strip() for i in strConFrd.split(" ") if i.strip()]
+            strreww = args[1]
+            FromGroupId = int(args[2])
+            action.sendGroupText(FromGroupId, strreww)
+
+        if strConFrd== "关机":
+            action.sendFriendText(nSendID, "正在关机")
+            bBotClose = True
+        if strConFrd== "开机":
+            action.sendFriendText(nSendID, "正在开机")
+            bBotClose = False
+        if strConFrd== "重启":
+            action.sendFriendText(nSendID, "正在重启")
+            restart_program()
+        if strConFrd == "群列表":
+            glist = action.getGroupList()
+            strList = ""
+            for x in glist:
+                strList += "ID="+ str(x["GroupId"]) + " name= " + str(x["GroupName"])+"\n"
+            action.sendFriendText(nSendID, strList)
+    else:
+        strMSG = "这个人:"+str(nSendID)+"  给你发消息:"+strConFrd
+        action.sendFriendText(1973381512, strMSG)
+            
+            
+def restart_program():
+  python = sys.executable
+  os.execl(python, python, * sys.argv)
 
 
 
@@ -2465,3 +2635,5 @@ if __name__ == '__main__':
         bot.run()
     except Exception as error:
         print("============>"+str(error))
+        adbstr = "python3 phBotoy.py"
+        os.system(adbstr)
