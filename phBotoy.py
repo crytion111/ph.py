@@ -28,6 +28,7 @@ import time
 import re
 import json
 import os
+from os import path
 import io
 import sys
 from PIL import Image, ImageDraw, ImageFont
@@ -45,6 +46,7 @@ jieba.setLogLevel(20)
 import cpuinfo
 import psutil
 import datetime
+from wordcloud import WordCloud, STOPWORDS
 
 bot = Botoy(qq=157199224, log=False)
 action = Action(157199224)
@@ -69,13 +71,39 @@ for x in wilteList:
 
 
 bBotClose = False
+bMasterQQ = 1973381512
 
 
 # -------------------------------------------------------------
+def generate_wordcloud(text):
+    '''
+    输入文本生成词云,如果是中文文本需要先进行分词处理
+    '''
+    # 设置显示方式
+    d=path.dirname(__file__)
+    # alice_mask = np.array(Image.open(path.join(d, "Images//alice_mask.png")))
+    font_path=path.join(d,"./ArialEnUnicodeBold.ttf")
+    stopwords = set(STOPWORDS)
+    wc = WordCloud(background_color="white",# 设置背景颜色
+           max_words=2000, # 词云显示的最大词数  
+        #    mask=alice_mask,# 设置背景图片       
+           stopwords=stopwords, # 设置停用词
+           font_path=font_path, # 兼容中文字体，不然中文会显示乱码
+                  )
+
+    # 生成词云 
+    wc.generate(text)
+
+    # 生成的词云图像保存到本地
+    wc.to_file(path.join(d, "./alice.png"))
 
 
 
 
+
+
+
+# -------------------------------------------------------------
 
 
 def get_cpu_info():
@@ -1894,6 +1922,7 @@ def group(ctx: GroupMsg):
     global dataCiliGroupData
     global dataSetuGroupData
     global nReciveTimes
+    global bMasterQQ
 
     global bGameStarted
     global bSaoLeiStart
@@ -1903,6 +1932,7 @@ def group(ctx: GroupMsg):
     global nXXXCount
     global bBotClose
     if bBotClose:
+        # action.sendGroupText(ctx.FromGroupId, "已关机")
         return 1
 
     strGID = str(ctx.FromGroupId)
@@ -1923,19 +1953,19 @@ def group(ctx: GroupMsg):
             re222 = chs2yin(args[1], 0)
             action.sendGroupText(ctx.FromGroupId, re222)
 
-    if strCont == "关闭磁力" and ctx.FromUserId == 1973381512:
+    if strCont == "关闭磁力" and ctx.FromUserId == bMasterQQ:
         dataCiliGroupData[strGID] = False
         action.sendGroupText(ctx.FromGroupId, "本群磁力已关闭", ctx.FromUserId)
 
-    if strCont == "开启磁力" and ctx.FromUserId == 1973381512:
+    if strCont == "开启磁力" and ctx.FromUserId == bMasterQQ:
         dataCiliGroupData[strGID] = True
         action.sendGroupText(ctx.FromGroupId, "本群磁力已开启", ctx.FromUserId)
 
-    if strCont == "关闭色图" and ctx.FromUserId == 1973381512:
+    if strCont == "关闭色图" and ctx.FromUserId == bMasterQQ:
         dataSetuGroupData[strGID] = False
         action.sendGroupText(ctx.FromGroupId, "本群色图已关闭", ctx.FromUserId)
 
-    if strCont == "开启色图" and ctx.FromUserId == 1973381512:
+    if strCont == "开启色图" and ctx.FromUserId == bMasterQQ:
         dataSetuGroupData[strGID] = True
         action.sendGroupText(ctx.FromGroupId, "本群色图已开启", ctx.FromUserId)
 
@@ -1945,7 +1975,16 @@ def group(ctx: GroupMsg):
         strSYSY = sysinfo()
         # print(strSYSY)
         action.sendGroupText(ctx.FromGroupId, strSYSY, ctx.FromUserId)
-# clici
+
+#================================================
+    if strCont.startswith("词云"):
+        strCont.replace("词云", "")
+        generate_wordcloud(strCont)
+        with open('./alice.png', 'rb') as f:  # 以二进制读取图片
+            data = f.read()
+            encodestr = base64.b64encode(data).decode()  # 得到 byte 编码的数据
+        action.sendGroupPic(ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+# clici================================
     if strCont.startswith("磁力搜"):
         bbb = False
         try:
@@ -1971,24 +2010,24 @@ def group(ctx: GroupMsg):
 # AIAI
     if strCont.startswith("小说续写") or strCont.startswith("续写") or strCont.startswith("小说续写"):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
-        if len(args) == 2:
-            nXXXCount += 1
-            if(nXXXCount > 1):
-                action.sendGroupText(ctx.FromGroupId, "任务太多,等等等再试试!!!!!!")
-                nXXXCount -= 1
-            else:
-                action.sendGroupText(ctx.FromGroupId, "好的,我正在构思")
-                strSsss = args[1]
-                strres = ""
-                try:
-                    strres = AIXXX(strSsss)
-                except Exception as eses: 
-                    strres = str(eses)
-                # strres = AIXXX(strSsss)
-                action.sendGroupText(ctx.FromGroupId, strres)
-                nXXXCount -= 1
+        strHead = args[0]
+        strSsss = strCont.replace(strHead, "")
+        nXXXCount += 1
+        if(nXXXCount > 1):
+            action.sendGroupText(ctx.FromGroupId, "任务太多,等等等再试试!!!!!!")
+            nXXXCount -= 1
         else:
-            action.sendGroupText(ctx.FromGroupId, "输入错误!!!!!!")
+            action.sendGroupText(ctx.FromGroupId, "好的,我正在构思")
+            strSsss = args[1]
+            strres = ""
+            try:
+                strres = AIXXX(strSsss)
+            except Exception as eses: 
+                strres = str(eses)
+            # strres = AIXXX(strSsss)
+            action.sendGroupText(ctx.FromGroupId, strres)
+            nXXXCount -= 1
+        
 
 # 垃圾分类============================================================================
     if strCont.startswith("垃圾分类"):
@@ -2223,14 +2262,14 @@ def group(ctx: GroupMsg):
         bSaoLeiStart = False
         action.sendGroupText(ctx.FromGroupId, "扫雷关闭")
 
-    if strCont.find("骂人") > -1:
+    if strCont == "骂人":
         urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
-        html = requests.get(urlMMM)
-        strConnn = str(html.text)
-        action.sendGroupText(ctx.FromGroupId, content=strConnn)
-        vocccPath12 = text_to_speech(strConnn)
-        action.sendGroupVoice(
-            ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
+        # html = requests.get(urlMMM)
+        # strConnn = str(html.text)
+        # action.sendGroupText(ctx.FromGroupId, content=strConnn)
+        # vocccPath12 = text_to_speech(strConnn)
+        # action.sendGroupVoice(
+        #     ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
 
     if strCont.startswith("@jj-姬器人"):
         if strCont.find("说说") > -1 or strCont.find("喊一声") > -1:
@@ -2286,8 +2325,8 @@ def group(ctx: GroupMsg):
 def receive_AT_group_msg(ctx: GroupMsg):
     global dataSetuGroupData
     global bBotClose
-    if bBotClose:
-        return 1
+    global bMasterQQ
+    
     objCtx = json.loads(ctx.Content)
     strCont = objCtx['Content']
     atUserID = objCtx['UserID'][0]
@@ -2295,7 +2334,10 @@ def receive_AT_group_msg(ctx: GroupMsg):
     # print("......" + str(ctx))
 
     # print("#asdasda==" + str(strCont.find("菜单")))
-    if strCont.find("骂") > -1 and atUserID != 157199224 and atUserID != 1973381512:
+    if strCont.find("骂") > -1 and atUserID != 157199224 and atUserID != bMasterQQ:
+        if bBotClose:
+            action.sendGroupText(ctx.FromGroupId, "已关机")
+            return 1
         urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
         html = requests.get(urlMMM)
         strConnn = str(html.text)
@@ -2306,6 +2348,9 @@ def receive_AT_group_msg(ctx: GroupMsg):
             ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
 
     if(atUserID == 157199224):
+        if bBotClose:
+            action.sendGroupText(ctx.FromGroupId, "已关机")
+            return 1
         if strCont.find("菜单") > -1 or strCont.find("帮助") > -1:
 
             struuuu = '''
@@ -2446,6 +2491,7 @@ def receive_PIC_group_msg(ctx: GroupMsg):
     global nBBBBBB
     global bBotClose
     if bBotClose:
+        action.sendGroupText(ctx.FromGroupId, "已关机")
         return 1
 
     objCtx = json.loads(ctx.Content)
@@ -2571,18 +2617,21 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 
 @bot.on_event
 def REV_EVENT_MSG(ctx: EventMsg):
+    global bMasterQQ
     # a = 12
     if ctx.EventMsg and ctx.EventMsg["Content"] != "群成员退出群聊事件" and ctx.EventMsg["Content"] != "某人进群事件" and ctx.EventMsg["Content"] != "群成员撤回消息事件" and ctx.EventMsg["Content"] != "好友事件状态(被同意添加好友/被拒绝添加好友)":
         aaa = "事件消息===>" + str(ctx.EventData)+" "+  str(ctx.EventMsg)
-        action.sendFriendText(1973381512, aaa)
+        action.sendFriendText(bMasterQQ, aaa)
 
 @bot.on_friend_msg
+@deco.ignore_botself
 def REV_FRD_MSG(ctx: FriendMsg):
     global bBotClose
+    global bMasterQQ
     
     nSendID = ctx.FromUin
     strConFrd = ctx.Content
-    if ctx.FromUin == 1973381512:
+    if ctx.FromUin == bMasterQQ:
         if strConFrd.startswith("发群消息"):
             args = [i.strip() for i in strConFrd.split(" ") if i.strip()]
             strreww = args[1]
@@ -2606,7 +2655,7 @@ def REV_FRD_MSG(ctx: FriendMsg):
             action.sendFriendText(nSendID, strList)
     else:
         strMSG = "这个人:"+str(nSendID)+"  给你发消息:"+strConFrd
-        action.sendFriendText(1973381512, strMSG)
+        action.sendFriendText(bMasterQQ, strMSG)
             
             
 def restart_program():
