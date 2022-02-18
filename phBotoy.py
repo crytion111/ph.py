@@ -47,8 +47,9 @@ import cpuinfo
 import psutil
 import datetime
 from wordcloud import WordCloud, STOPWORDS
+import redis
 
-bot = Botoy(qq=157199224, log=False)
+bot = Botoy(qq=157199224, log=False, use_plugins = True)
 action = Action(157199224)
 
 bOpenThisBOT = True
@@ -293,7 +294,7 @@ def text_to_speech(ai_text):
             f.write(result)
         return "./aisay.mp3"
 
-    return "asdasd.mmmm"
+    return ""
 
 # ---------------------------------------------------------------
 
@@ -1977,8 +1978,8 @@ def group(ctx: GroupMsg):
         action.sendGroupText(ctx.FromGroupId, strSYSY, ctx.FromUserId)
 
 #================================================
-    if strCont.startswith("词云"):
-        strCont.replace("词云", "")
+    if strCont.startswith("词云123"):
+        strCont.replace("词云123", "")
         generate_wordcloud(strCont)
         with open('./alice.png', 'rb') as f:  # 以二进制读取图片
             data = f.read()
@@ -2009,6 +2010,7 @@ def group(ctx: GroupMsg):
 
 # AIAI
     if strCont.startswith("小说续写") or strCont.startswith("续写") or strCont.startswith("小说续写"):
+
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         strHead = args[0]
         strSsss = strCont.replace(strHead, "")
@@ -2018,7 +2020,7 @@ def group(ctx: GroupMsg):
             nXXXCount -= 1
         else:
             action.sendGroupText(ctx.FromGroupId, "好的,我正在构思")
-            strSsss = args[1]
+    
             strres = ""
             try:
                 strres = AIXXX(strSsss)
@@ -2276,13 +2278,14 @@ def group(ctx: GroupMsg):
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 vocccPath = text_to_speech(args[2])
-                action.sendGroupVoice(
-                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                if len(vocccPath) > 0:
+                    action.sendGroupVoice(
+                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             elif len(args) == 2:
                 vocccPath = text_to_speech(args[1])
-
-                action.sendGroupVoice(
-                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                if len(vocccPath) > 0:
+                    action.sendGroupVoice(
+                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             else:
                 action.sendGroupText(
                     ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
@@ -2344,8 +2347,9 @@ def receive_AT_group_msg(ctx: GroupMsg):
         action.sendGroupText(
             ctx.FromGroupId, content=strConnn, atUser=atUserID)
         vocccPath12 = text_to_speech(strConnn)
-        action.sendGroupVoice(
-            ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
+        if len(vocccPath12) > 0:
+            action.sendGroupVoice(
+                ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
 
     if(atUserID == 157199224):
         if bBotClose:
@@ -2376,6 +2380,7 @@ def receive_AT_group_msg(ctx: GroupMsg):
             =>1:加机器人好友, 2:邀请它入群, 3:使用\n
 
             '''
+            struuuu += "\n" +bot.plugMgr.help
             action.sendGroupText(ctx.FromGroupId, struuuu, ctx.FromUserId)
         # 模特 ------------------------------
         elif strCont.find("来张美图") > -1 or strCont.find("来张色图") > -1 or strCont.find("来张图") > -1:
@@ -2447,14 +2452,14 @@ def receive_AT_group_msg(ctx: GroupMsg):
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 vocccPath = text_to_speech(args[2])
-
-                action.sendGroupVoice(
-                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                if len(vocccPath) > 0:
+                    action.sendGroupVoice(
+                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             elif len(args) == 2:
                 vocccPath = text_to_speech(args[1])
-
-                action.sendGroupVoice(
-                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                if len(vocccPath) > 0:
+                    action.sendGroupVoice(
+                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
             else:
                 action.sendGroupText(
                     ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
@@ -2465,8 +2470,9 @@ def receive_AT_group_msg(ctx: GroupMsg):
             strConnn = str(html.text)
             action.sendGroupText(ctx.FromGroupId, content=strConnn)
             vocccPath12 = text_to_speech(strConnn)
-            action.sendGroupVoice(
-                ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
+            if len(vocccPath12) > 0:
+                action.sendGroupVoice(
+                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
             #
         else:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2475,8 +2481,9 @@ def receive_AT_group_msg(ctx: GroupMsg):
                 text = chatAI(args[1])
                 try:
                     vocccPath = text_to_speech(text)
-                    action.sendGroupVoice(
-                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
+                    if len(vocccPath) > 0:
+                        action.sendGroupVoice(
+                            ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
                 except:
                     action.sendGroupText(
                         ctx.FromGroupId, "语音失败,发送文字:"+text, ctx.FromUserId)
@@ -2676,13 +2683,18 @@ def connected():
     o = 0
     # print('socket连接成功~')
 
+# @bot.on_group_msg
+# @deco.ignore_botself
+# @deco.these_msgtypes('TextMsg')
+# def help(ctx: GroupMsg):
+#     if ctx.Content == "帮助":
+#         # print("+++++++++++>" + bot.plugMgr.help)
+#         action.sendGroupText(ctx.FromGroupId, bot.plugMgr.help)
+
+
+# r = redis.Redis(host='127.0.0.1', port=6379)
 
 if __name__ == '__main__':
     # ---------------------------------------------------------------------------------
-    try:
-        print("qidong")
-        bot.run()
-    except Exception as error:
-        print("============>"+str(error))
-        adbstr = "python3 phBotoy.py"
-        os.system(adbstr)
+    print("qidong")
+    bot.run()
