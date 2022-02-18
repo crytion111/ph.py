@@ -1,5 +1,6 @@
 # ph.py
 
 基于OPQBot的qq机器人
+先启动OPQBot, 地址:https://github.com/opq-osc/OPQ, 启动方法: https://github.com/opq-osc/OPQ/wiki
 
-ph.py为入口
+phBotoy.py为入口
