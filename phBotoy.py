@@ -74,8 +74,8 @@ nXXXCount = 0
 
 session = requests.Session()
 
-# wilteList = [779119500, 273590953, 234088768]
-wilteList = [779119500, 273590953]
+# wilteList = []
+wilteList = []
 
 for x in wilteList:
     strID = str(x)
@@ -467,8 +467,8 @@ def toBase64(imgUrl):
 
 def CheckYYYY(strB64):
     pay_load = {
-        'api_key': "X5CYnsaJJCgMJXMPo9JGyHWfsqWx80gr",
-        'api_secret': "K1zHwlcl1RalyoLOH3vWLsouLDjPcl69",
+        'api_key': "",
+        'api_secret': "",
         'return_attributes': 'age,gender,skinstatus,beauty,smiling',
         'image_base64': strB64
     }
