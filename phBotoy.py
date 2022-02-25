@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from bs4 import BeautifulSoup
-import urllib.error
 import urllib.request
+
 from src.model import GPT, GPTConfig
 import src.utils
 from torch.nn import functional as F
@@ -13,7 +13,7 @@ from aip import AipSpeech
 from io import BytesIO
 import copy
 from pydantic import BaseModel
-from botoy import Botoy, Action, FriendMsg, GroupMsg, EventMsg
+from botoy import Botoy, Action, FriendMsg, GroupMsg, EventMsg, jconfig
 from botoy.sugar import Text
 import botoy.decorators as deco
 from retrying import retry
@@ -47,14 +47,25 @@ import cpuinfo
 import psutil
 import datetime
 from wordcloud import WordCloud, STOPWORDS
-import redis
+from pathlib import Path
+from PIL import ImageEnhance
+from typing import *
 
-bot = Botoy(qq=157199224, log=False, use_plugins = True)
-action = Action(157199224)
+# print("=1111111===========>" + str(jconfig.bot))
+# print("=22222222===========>" + str(jconfig.superAdmin))
+
+botQQ = jconfig.bot
+bMasterQQ = jconfig.superAdmin
+
+bot = Botoy(qq=botQQ, log=False, use_plugins = True)
+action = Action(botQQ)
+
+bCloseXX = False
 
 bOpenThisBOT = True
 dataCiliGroupData = {}
 dataSetuGroupData = {}
+dataNudeGroupData = {}
 nAAAAAAAA = 91
 nBBBBBB = 99999
 nReciveTimes = 0
@@ -63,16 +74,259 @@ nXXXCount = 0
 
 session = requests.Session()
 
+# wilteList = [779119500, 273590953, 234088768]
 wilteList = [779119500, 273590953]
 
 for x in wilteList:
     strID = str(x)
     dataCiliGroupData[strID] = True
     dataSetuGroupData[strID] = True
+    dataNudeGroupData[strID] = True
 
 
 bBotClose = False
-bMasterQQ = 1973381512
+
+plpDataArr = []
+curFileDir = Path(__file__).absolute().parent  # 当前文件路径
+with open(curFileDir / "plp.json", "r", encoding="utf-8") as f:
+    plpCtx = json.load(f)
+    # print("plpp=====> " + str(plpCtx))
+    dataArr = plpCtx['plpData'] 
+    if(dataArr and len(dataArr) > 0):
+        plpDataArr = dataArr
+
+def savePLPJson():
+    with open(curFileDir / "plp.json", 'w', encoding="utf-8")as f:
+        data = {"plpData": plpDataArr}
+        json.dump(data, f)
+
+mrDataArr = []
+with open(curFileDir / "mr.json", "r", encoding="utf-8") as f:
+    mrCtx = json.load(f)
+    # print("plpp=====> " + str(plpCtx))
+    dataArr = mrCtx['arr'] 
+    if(dataArr and len(dataArr) > 0):
+        mrDataArr = dataArr
+
+
+
+np.seterr(divide="ignore", invalid="ignore")
+
+
+#---------------------------------------TJTKTK
+
+def resize_image(im1: Image.Image, im2: Image.Image, mode: str) -> Tuple[Image.Image, Image.Image]:
+    """
+    统一图像大小
+    """
+    _wimg = im1.convert(mode)
+    _bimg = im2.convert(mode)
+
+    wwidth, wheight = _wimg.size
+    bwidth, bheight = _bimg.size
+
+    width = max(wwidth, bwidth)
+    height = max(wheight, bheight)
+
+    wimg = Image.new(mode, (width, height), 255)
+    bimg = Image.new(mode, (width, height), 0)
+
+    wimg.paste(_wimg, ((width - wwidth) // 2, (height - wheight) // 2))
+    bimg.paste(_bimg, ((width - bwidth) // 2, (height - bheight) // 2))
+
+    return wimg, bimg
+
+
+# 感谢老司机
+# https://zhuanlan.zhihu.com/p/31164700
+def gray_car(
+    wimg: Image.Image,
+    bimg: Image.Image,
+    wlight: float = 1.0,
+    blight: float = 0.3,
+    chess: bool = False,
+) -> Image.Image:
+    """
+    发黑白车
+    :param wimg: 白色背景下的图片
+    :param bimg: 黑色背景下的图片
+    :param wlight: wimg 的亮度
+    :param blight: bimg 的亮度
+    :param chess: 是否棋盘格化
+    :return: 处理后的图像
+    """
+    wimg, bimg = resize_image(wimg, bimg, "L")
+
+    wpix = np.array(wimg).astype("float64")
+    bpix = np.array(bimg).astype("float64")
+
+    # 棋盘格化
+    # 规则: if (x + y) % 2 == 0 { wpix[x][y] = 255 } else { bpix[x][y] = 0 }
+    if chess:
+        wpix[::2, ::2] = 255.0
+        bpix[1::2, 1::2] = 0.0
+
+    wpix *= wlight
+    bpix *= blight
+
+    a = 1.0 - wpix / 255.0 + bpix / 255.0
+    r = np.where(a != 0, bpix / a, 255.0)
+
+    pixels = np.dstack((r, r, r, a * 255.0))
+
+    pixels[pixels > 255] = 255
+
+    return Image.fromarray(pixels.astype("uint8"), "RGBA")
+
+
+# https://zhuanlan.zhihu.com/p/32532733
+def color_car(
+    wimg: Image.Image,
+    bimg: Image.Image,
+    wlight: float = 1.0,
+    blight: float = 0.6,
+    wcolor: float = 0.01,
+    bcolor: float = 0.5,
+    chess: bool = False,
+) -> Image.Image:
+    """
+    发彩色车
+    :param wimg: 白色背景下的图片
+    :param bimg: 黑色背景下的图片
+    :param wlight: wimg 的亮度
+    :param blight: bimg 的亮度
+    :param wcolor: wimg 的色彩保留比例
+    :param bcolor: bimg 的色彩保留比例
+    :param chess: 是否棋盘格化
+    :return: 处理后的图像
+    """
+    wimg = ImageEnhance.Brightness(wimg).enhance(wlight)
+    bimg = ImageEnhance.Brightness(bimg).enhance(blight)
+
+    wimg, bimg = resize_image(wimg, bimg, "RGB")
+
+    wpix = np.array(wimg).astype("float64")
+    bpix = np.array(bimg).astype("float64")
+
+    if chess:
+        wpix[::2, ::2] = [255., 255., 255.]
+        bpix[1::2, 1::2] = [0., 0., 0.]
+
+    wpix /= 255.
+    bpix /= 255.
+
+    wgray = wpix[:, :, 0] * 0.334 + wpix[:, :, 1] * 0.333 + wpix[:, :, 2] * 0.333
+    wpix *= wcolor
+    wpix[:, :, 0] += wgray * (1. - wcolor)
+    wpix[:, :, 1] += wgray * (1. - wcolor)
+    wpix[:, :, 2] += wgray * (1. - wcolor)
+
+    bgray = bpix[:, :, 0] * 0.334 + bpix[:, :, 1] * 0.333 + bpix[:, :, 2] * 0.333
+    bpix *= bcolor
+    bpix[:, :, 0] += bgray * (1. - bcolor)
+    bpix[:, :, 1] += bgray * (1. - bcolor)
+    bpix[:, :, 2] += bgray * (1. - bcolor)
+
+    d = 1. - wpix + bpix
+
+    d[:, :, 0] = d[:, :, 1] = d[:, :, 2] = d[:, :, 0] * 0.222 + d[:, :, 1] * 0.707 + d[:, :, 2] * 0.071
+
+    p = np.where(d != 0, bpix / d * 255., 255.)
+    a = d[:, :, 0] * 255.
+
+    colors = np.zeros((p.shape[0], p.shape[1], 4))
+    colors[:, :, :3] = p
+    colors[:, :, -1] = a
+
+    colors[colors > 255] = 255
+
+    return Image.fromarray(colors.astype("uint8")).convert("RGBA")
+
+def mkTKPic(strP1, strP2, strP3):
+    im1 = Image.open(strP1)
+    im2 = Image.open(strP2)
+    im1 = im1.resize(im2.size, Image.ANTIALIAS)
+    # color_car(im1, im2).save(strP3)
+    buffered = io.BytesIO()
+    color_car(im1, im2).save(buffered, format="png")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+
+#---------------------------------------骂人
+def GetMrStr():
+    global mrDataArr
+    allLength = len(mrDataArr)
+    nRIndex = random.randint(0, allLength-1)
+    mrd = mrDataArr[nRIndex]
+    return mrd
+
+# -------------------------------------------------------------
+
+def GetMeiZiTu(nNum = 1):
+    url = "https://bcy.net/apiv3/common/circleFeed"
+    par = {
+        'circle_id': 14903
+    }
+    header = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36 Edg/96.0.1054.62',
+        'Referer': 'https://bcy.net/tag/14903'
+    }
+
+    res = requests.get(url, headers=header, params=par)
+    res_encode = res.text.encode('utf-8')
+    res_json = json.loads(res_encode)
+
+    strResJK = ""
+    objJK = {}
+    strb64JK = []
+    nRoninnn = random.randint(1, 10)
+    a = 0
+    for item in res_json['data']['items']:
+        a += 1
+        if a != nRoninnn:
+            continue
+        name = item['item_detail']['uname']
+        strResJK += str(name)+"\n\n"
+        
+        avatar = item['item_detail']['avatar']
+        avatar_name = str(avatar).rsplit('.image')[0]
+        avatar_name1 = str(avatar_name).rsplit('/')[-1]
+        # strResJK += avatar + "\n\n"
+        
+        # print(f'{avatar_name1}.jpg')
+
+        dataww = requests.get(avatar, headers=header).content 
+        strB64 = base64.b64encode(dataww).decode()
+
+        # print(name, avatar_name1)
+
+        for image in item['item_detail']['image_list']:
+            images = image['path']
+            images_name = str(images).rsplit('.image')[0]
+            images_name1 = str(images_name).rsplit('/')[-1]
+            strResJK += images + "\n\n"
+            aa = (requests.get(images, headers=header).content)
+            aa64 = base64.b64encode(aa).decode()
+            strb64JK.append(aa64)
+
+        objJK["strResJK"] = strResJK
+        objJK["avatar"] = strB64
+        objJK["strb64JK"] = strb64JK
+        return objJK
+        # time.sleep(1)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # -------------------------------------------------------------
@@ -907,7 +1161,7 @@ def event_manager(ctx):
     return
 
 
-def main(ctx):
+def mainLiuLang(ctx):
     init(status)
     str = reflush_screen()
     str = str + "\n请回复继续游戏加空格加选项, 比如回复 继续游戏 1, 不玩请输入结束游戏"
@@ -920,14 +1174,14 @@ mt = 0
 # ------------------------------混乱#------------------------------
 def transYin(x, y, aaa):
     if x in {',', '，', '。'}:
-        return '?'
+        return '❤'
     if x in {'!', '！', ' '}:
-        return '..'
+        return '...'
     if len(x) > 1 and random.random() < 0.5:
-        return f'{x[0]}〇..?{x}'
+        return f'{x[0]}〇♡..?{x}'
     else:
-        if y == 'n' and random.random() < 0.5:
-            x = '〇' * len(x)
+        if y == 'n' and random.random() < 0.4:
+            x = '♥' * len(x)
         return f'..{x}'
 
 
@@ -1464,50 +1718,55 @@ def ciliSou(strSearch, nmmm):
 
 
 # ---------------------------------------------
-ENSTRS = ("富强", "民主", "文明", "和谐", "自由", "平等",
-          "公正", "法治", "爱国", "敬业", "诚信", "友善")
+beast = ['嗷', '呜', '啊', '~']
 
 
-def decoder(string):
-    len_str = len(string)
-    if len_str % 16 != 0:
-        return "jiemishibai1!!!!!!!!!"
-    result = ''
-    for x in range(0, len_str, 16):
-        decode_char = string[x:x+16]
-        temp_int = [ENSTRS.index(decode_char[y:y+2]) for y in range(0, 16, 2)]
-        int_list = [temp_int[x]+temp_int[x+1] for x in range(0, 8, 2)]
-        bin_temp = [bin(i).replace('0b', '') for i in int_list]
-        binstr_list = []
-        for b in bin_temp:
-            if len(b) < 4:
-                binstr_list.append(b.zfill(4))
-            else:
-                binstr_list.append(b)
-        binstr = ''.join(binstr_list)
-        result = result + chr(int(binstr, 2))
-    return result
+def str2hex(text: str):
+    ret = ""
+    for x in text:
+        charHexStr = hex(ord(x))[2:]
+        if len(charHexStr) == 3:
+            charHexStr = "0" + charHexStr
+        elif len(charHexStr) == 2:
+            charHexStr = "00" + charHexStr
+        ret += charHexStr
+    return ret
 
 
-def encoder(string):
-    result = ''
-    binstr_list = [b.replace('0b', '') for b in [bin(ord(c)) for c in string]]
-    for binstr in binstr_list:
-        len_binstr = len(binstr)
-        if len_binstr < 16:
-            binstr = binstr.zfill(16)
-        temp_list = [binstr[start:start+4] for start in range(0, 16, 4)]
-        int_list = []
-        for i in temp_list:
-            i = int(i, 2)
-            if i >= 11:
-                int_list.append(11)
-                int_list.append(i - 11)
-            else:
-                int_list.append(0)
-                int_list.append(i)
-        result = result + ''.join([ENSTRS[index] for index in int_list])
-    return result
+def hex2str(text: str):
+    ret = ""
+    for i in range(0, len(text), 4):
+        unicodeHexStr = text[i:i + 4]
+        charStr = chr(int(unicodeHexStr, 16))
+        ret += charStr
+    return ret
+
+
+def encoder(str):
+    hexArray = list(str2hex(str))
+    code = ""
+    n = 0
+    for x in hexArray:
+        k = int(x, 16) + n % 16
+        if k >= 16:
+            k -= 16
+        code += beast[int(k / 4)] + beast[k % 4]
+        n += 1
+    return code
+
+
+def decoder(str):
+    hexArray = list(str)
+    code = ""
+    for i in range(0, len(hexArray), 2):
+        pos1 = beast.index(hexArray[i])
+        pos2 = beast.index(hexArray[i + 1])
+        k = ((pos1 * 4) + pos2) - (int(i / 2) % 16)
+        if k < 0:
+            k += 16
+        code += hex(k)[2:]
+    return hex2str(code)
+
 
 
 # ---------------------------------------------
@@ -1914,11 +2173,26 @@ def getYubanPic(tags, pon="0"):
         return "获取图片出错===>" + str(e)+" tags "+tags+" pn "+pon
 
 
+class __redirection__:
+    def __init__(self):
+        self.buff=''
+        self.__console__=sys.stdout
+        
+    def write(self, output_stream):
+        self.buff+=output_stream
+        
+    def flush(self):
+        self.buff=''
+        
+    def reset(self):
+        sys.stdout=self.__console__
+
+
 # ----------------RECIVE-------------------------#--------------------------------------------------------------------------------------#---------------------------------------------------------------------------------
 @bot.on_group_msg
 @deco.ignore_botself
 @deco.these_msgtypes('TextMsg')
-def group(ctx: GroupMsg):
+def OnGroupMSG(ctx: GroupMsg):
     global bOpenThisBOT
     global dataCiliGroupData
     global dataSetuGroupData
@@ -1932,14 +2206,19 @@ def group(ctx: GroupMsg):
     global mt
     global nXXXCount
     global bBotClose
+    global botQQ
+    global plpDataArr
+    global mrDataArr
+    global bCloseXX
     if bBotClose:
         # action.sendGroupText(ctx.FromGroupId, "已关机")
         return 1
 
     strGID = str(ctx.FromGroupId)
     strCont = ctx.Content
+    strSendQQID = str(ctx.FromUserId)
 
-    if 157199224 == ctx.FromUserId:
+    if botQQ == ctx.FromUserId:
         return 1
     nReciveTimes = nReciveTimes + 1
     #logger.success('nReciveTimes= ' + str(nReciveTimes))
@@ -1948,6 +2227,35 @@ def group(ctx: GroupMsg):
         reeee = chs2yin(strCont, 0)
         action.sendGroupText(ctx.FromGroupId, reeee)
 
+    if strCont.startswith("扔漂流瓶"):
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        strHead = args[0]
+        strSssspplp = strCont.replace(strHead, "")
+        plpData1 = {"qquid": ctx.FromUserId, "ctx": strSssspplp, "gName":ctx.FromGroupId}
+        plpDataArr.append(plpData1)
+        action.sendGroupText(ctx.FromGroupId, "成功扔掉漂流瓶, 等人捞到吧!")
+        savePLPJson()
+    if strCont.startswith("获取漂流瓶"):
+        if len(plpDataArr) > 0:
+            allL = len(plpDataArr)
+            nRIndex = random.randint(0, allL-1)
+            plpData = plpDataArr[nRIndex]
+            # NQID = int(plpData["qquid"] / 10000)
+            NQID = plpData["qquid"]
+            NGID = plpData["gName"]
+            strPLP = "捞到一个QQ号:"+ str(NQID) +" 在群("+ str(NGID) +")中发送的漂流瓶.\n里面有张纸条, 内容是:\n"+ str(plpData["ctx"])
+            plpDataArr.remove(plpData)
+            # print(str(plpData["qquid"]) +  " strPLPstrPLP===>" + strPLP)
+            action.sendGroupText(ctx.FromGroupId, strPLP)
+            savePLPJson()
+        else:
+            action.sendGroupText(ctx.FromGroupId, "大海中已经没漂流瓶了!", ctx.FromUserId)
+    if strCont.startswith("获取管理员"):
+        userslist = action.getGroupAdminList(ctx.FromGroupId)
+        strUL = ""
+        for x in userslist:
+            strUL += "管理员: "+x["NickName"]+", QQ号:"+str(x["MemberUin"])+"\n"
+        action.sendGroupText(ctx.FromGroupId, strUL)
     if strCont.startswith("发病"):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
@@ -1977,14 +2285,6 @@ def group(ctx: GroupMsg):
         # print(strSYSY)
         action.sendGroupText(ctx.FromGroupId, strSYSY, ctx.FromUserId)
 
-#================================================
-    if strCont.startswith("词云123"):
-        strCont.replace("词云123", "")
-        generate_wordcloud(strCont)
-        with open('./alice.png', 'rb') as f:  # 以二进制读取图片
-            data = f.read()
-            encodestr = base64.b64encode(data).decode()  # 得到 byte 编码的数据
-        action.sendGroupPic(ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
 # clici================================
     if strCont.startswith("磁力搜"):
         bbb = False
@@ -1996,6 +2296,9 @@ def group(ctx: GroupMsg):
         if bbb == False:
             action.sendGroupText(
                 ctx.FromGroupId, "磁力关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
+            return 1
+        if CheckCoins(strSendQQID, 20) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能20金币一次")
             return 1
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
@@ -2009,8 +2312,34 @@ def group(ctx: GroupMsg):
             action.sendGroupText(ctx.FromGroupId, strRRqq)
 
 # AIAI
-    if strCont.startswith("小说续写") or strCont.startswith("续写") or strCont.startswith("小说续写"):
+    if strCont.startswith("运行代码") and ctx.FromUserId == bMasterQQ:
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        strHead1 = args[0]
+        strSsss = strCont.replace(strHead1, "")
+        strEEE = ""
+        try:
+            r_obj = __redirection__()
+            sys.stdout = r_obj
+            sys.stdout.flush()
+            strEEE = str(eval(strSsss))
+            strEEE += "\n"+sys.stdout.buff
+        except BaseException as err:
+            strEEE = str(err)
+        action.sendGroupText(ctx.FromGroupId, strEEE)
 
+    if strCont == "关闭续写":
+        bCloseXX = True
+        action.sendGroupText(ctx.FromGroupId, "关闭续写")
+    if strCont == "开启续写":
+        bCloseXX = False
+        action.sendGroupText(ctx.FromGroupId, "开启续写")
+    if strCont.startswith("小说续写") or strCont.startswith("续写") or strCont.startswith("小说续写"):
+        if bCloseXX:
+            action.sendGroupText(ctx.FromGroupId, "电脑需要办公, 暂时停掉续写功能")
+            return 1
+        if CheckCoins(strSendQQID, 15) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能15金币一次")
+            return 1
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         strHead = args[0]
         strSsss = strCont.replace(strHead, "")
@@ -2126,6 +2455,10 @@ def group(ctx: GroupMsg):
 
 # 买家秀 ------------------------------
     if strCont.find("买家秀") > -1:
+        if CheckCoins(strSendQQID, 10) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+            return 1
+
         indexInt = random.randint(1, 6)
         taobaoUrl = "https://api.uomg.com/api/rand.img3"
         if indexInt == 1:
@@ -2139,19 +2472,33 @@ def group(ctx: GroupMsg):
 
 
 # 幻影坦克 ------------------------------
-    if strCont.find("幻影坦克") > -1:
+    if strCont == "幻影坦克":
+        if CheckCoins(strSendQQID, 10) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+            return 1
+
         taobaoUrl = getYubanPic("")
+        # taobaoUrl2 = getYubanPic("")
         SavePic(taobaoUrl)
-        f1 = 'tttkkk.png'  # 上层
+        # SavePic2222(taobaoUrl2)
+        f1 = 'test.jpg'  # 上层
         f2 = 'MJX.png'  # 下层
-        savePath = r'T12.png'  # 保存路径
-        try:
-            base64_str = make(f1, f2, savePath)
-            action.sendGroupPic(ctx.FromGroupId, picBase64Buf=base64_str,
-                                content="OK!!!!", atUser=ctx.FromUserId)
-        except:
-            action.sendGroupText(ctx.FromGroupId, "\n" +
-                                 "合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
+        savePath = r'T12123123.png'  # 保存路径
+        base64_str = mkTKPic(f1, f2, savePath)
+        action.sendGroupPic(ctx.FromGroupId, picBase64Buf=base64_str,
+                                 content="OK!!!!", atUser=ctx.FromUserId)
+    if strCont == "r18幻影坦克":
+        if CheckCoins(strSendQQID, 20) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能20金币一次")
+            return 1
+        taobaoUrl = getYubanPic("", 1)
+        SavePic(taobaoUrl)
+        f1 = 'test.jpg'  # 上层
+        f2 = 'MJX.png'  # 下层
+        savePath = r'T12123123.png'  # 保存路径
+        base64_str = mkTKPic(f1, f2, savePath)
+        action.sendGroupPic(ctx.FromGroupId, picBase64Buf=base64_str,
+                                 content="OK!!!!", atUser=ctx.FromUserId)
 
 # 讲个笑话 ------------------------------
     if strCont.find("讲个笑话") > -1:
@@ -2171,7 +2518,7 @@ def group(ctx: GroupMsg):
     if strCont == "开始流浪":
         if bGameStarted == False:
             bGameStarted = True
-            main(ctx)
+            mainLiuLang(ctx)
         else:
             action.sendGroupText(ctx.FromGroupId, "游戏正在进行中, 不能多开")
     if strCont.startswith("继续游戏"):
@@ -2264,32 +2611,6 @@ def group(ctx: GroupMsg):
         bSaoLeiStart = False
         action.sendGroupText(ctx.FromGroupId, "扫雷关闭")
 
-    if strCont == "骂人":
-        urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
-        # html = requests.get(urlMMM)
-        # strConnn = str(html.text)
-        # action.sendGroupText(ctx.FromGroupId, content=strConnn)
-        # vocccPath12 = text_to_speech(strConnn)
-        # action.sendGroupVoice(
-        #     ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
-
-    if strCont.startswith("@jj-姬器人"):
-        if strCont.find("说说") > -1 or strCont.find("喊一声") > -1:
-            args = [i.strip() for i in strCont.split(" ") if i.strip()]
-            if len(args) == 3:
-                vocccPath = text_to_speech(args[2])
-                if len(vocccPath) > 0:
-                    action.sendGroupVoice(
-                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
-            elif len(args) == 2:
-                vocccPath = text_to_speech(args[1])
-                if len(vocccPath) > 0:
-                    action.sendGroupVoice(
-                        ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
-            else:
-                action.sendGroupText(
-                    ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
-
     if strCont.startswith("来张美图") or strCont.startswith("来张色图") or strCont.startswith("来张图"):
         #print("????????????" + strCont)#
         bbbst = False
@@ -2300,6 +2621,10 @@ def group(ctx: GroupMsg):
         if bbbst == False:
             action.sendGroupText(
                 ctx.FromGroupId, "图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
+            return 1
+
+        if CheckCoins(strSendQQID, 10) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
             return 1
 
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2329,21 +2654,30 @@ def receive_AT_group_msg(ctx: GroupMsg):
     global dataSetuGroupData
     global bBotClose
     global bMasterQQ
-    
+    global botQQ
+    global lastBotMsg
+
     objCtx = json.loads(ctx.Content)
     strCont = objCtx['Content']
     atUserID = objCtx['UserID'][0]
     strGID = str(ctx.FromGroupId)
+    sendUid = ctx.FromUserId
+    strSendQQID = str(ctx.FromUserId)
+    nGroupID = ctx.FromGroupId
     # print("......" + str(ctx))
 
     # print("#asdasda==" + str(strCont.find("菜单")))
-    if strCont.find("骂") > -1 and atUserID != 157199224 and atUserID != bMasterQQ:
+    if strCont.find("骂") > -1 and atUserID != botQQ and atUserID != bMasterQQ:
         if bBotClose:
             action.sendGroupText(ctx.FromGroupId, "已关机")
             return 1
-        urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
-        html = requests.get(urlMMM)
-        strConnn = str(html.text)
+        # urlMMM = "https://fun.886.be/api.php?lang=zh_cn"
+        # html = requests.get(urlMMM)
+        # strConnn = str(html.text)
+        if CheckCoins(strSendQQID, 1) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能1金币一次")
+            return 1
+        strConnn = GetMrStr()
         action.sendGroupText(
             ctx.FromGroupId, content=strConnn, atUser=atUserID)
         vocccPath12 = text_to_speech(strConnn)
@@ -2351,7 +2685,32 @@ def receive_AT_group_msg(ctx: GroupMsg):
             action.sendGroupVoice(
                 ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
 
-    if(atUserID == 157199224):
+    if(atUserID == botQQ):
+        if sendUid == bMasterQQ:
+            if strCont.find("撤回") > -1:
+                if(lastBotMsg and len(lastBotMsg) > 0):
+                    lastCtx = lastBotMsg.pop()
+                    action.revoke(lastCtx)
+                    return
+                else:
+                    action.sendGroupText(ctx.FromGroupId, "没有消息列表!!!!!!!")
+                    return
+            if strCont.find("添加白名单") > -1:
+                wilteList.append(nGroupID)
+                for x in wilteList:
+                    strID = str(x)
+                    dataCiliGroupData[strID] = True
+                    dataSetuGroupData[strID] = True
+                    dataNudeGroupData[strID] = True
+                action.sendGroupText(ctx.FromGroupId, "添加成功, " + strGID)
+                return
+            if strCont.find("添加黑名单") > -1:
+                dataCiliGroupData[strGID] = False
+                dataSetuGroupData[strGID] = False
+                dataNudeGroupData[strGID] = False
+                action.sendGroupText(ctx.FromGroupId, "添加成功, " + strGID)
+                return
+
         if bBotClose:
             action.sendGroupText(ctx.FromGroupId, "已关机")
             return 1
@@ -2372,6 +2731,10 @@ def receive_AT_group_msg(ctx: GroupMsg):
             发送[翻译翻译 拼音缩写],就能让机器翻译内容 比如 翻译翻译 yyds, 翻译永远滴神\n
             发送[小说续写 开头内容],就能让机器续写之后的内容, 比如 小说续写 群主挂了之后\n
             发送[颜值检测 加图片],就能让机器人检测颜值\n
+            发送[系统信息],查看机器人运行状态\n
+            发送[获取管理员],查看本群管理员列表\n
+            发送[扔漂流瓶 加内容],\n
+            发送[获取漂流瓶],\n
             ==>只有以下两个功能需要@机器人,别的功能别自作主张@它=\n
             @机器人  可以和机器人对话=\n
             @机器人后回复 说说+内容,就能让机器人读出内容 比如@jj-姬器人 说说 你是傻逼=\n
@@ -2380,7 +2743,16 @@ def receive_AT_group_msg(ctx: GroupMsg):
             =>1:加机器人好友, 2:邀请它入群, 3:使用\n
 
             '''
-            struuuu += "\n" +bot.plugMgr.help
+            struuuu += "\n" +bot.plugMgr.help+"\n\n"
+
+            if sendUid == bMasterQQ:
+                struuuu += "@机器人加 撤回 添加白名单 添加黑名单\n"
+                struuuu += "私聊 群消息 私聊 关机 开机 重启 群列表\n"
+
+            struuuu += "发送 机器人签到 获取金币\n\n"
+            struuuu += "发送 查询金币 查询金币\n\n"
+            struuuu += "买家秀, 续写小说, 幻影坦克, 骂人, AI脱衣, 机器人说说+内容 这些功能需要金币\n"
+
             action.sendGroupText(ctx.FromGroupId, struuuu, ctx.FromUserId)
         # 模特 ------------------------------
         elif strCont.find("来张美图") > -1 or strCont.find("来张色图") > -1 or strCont.find("来张图") > -1:
@@ -2394,6 +2766,9 @@ def receive_AT_group_msg(ctx: GroupMsg):
                     ctx.FromGroupId, "AT图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
                 return 1
 
+            if CheckCoins(strSendQQID, 10) == False:
+                action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+                return 1
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             aaa = 0
             if len(args) == 1 or len(args) == 2:
@@ -2421,6 +2796,9 @@ def receive_AT_group_msg(ctx: GroupMsg):
                         '''
             action.sendGroupText(ctx.FromGroupId, struuuu, ctx.FromUserId)
         elif strCont.find("买家秀") > -1:
+            if CheckCoins(strSendQQID, 10) == False:
+                action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+                return 1
             indexInt = random.randint(1, 6)
             taobaoUrl = "https://api.uomg.com/api/rand.img3"
             if indexInt == 1:
@@ -2432,11 +2810,19 @@ def receive_AT_group_msg(ctx: GroupMsg):
             action.sendGroupPic(ctx.FromGroupId, picUrl=taobaoUrl,
                                 content="OK!!!!", atUser=ctx.FromUserId)
 
-        elif strCont.find("加密") > -1:
+        elif strCont.find("加密") > -1 or strCont.find("和谐") > -1:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             if len(args) == 3:
                 str111 = encoder(args[2])
-                action.sendGroupText(ctx.FromGroupId, str111)
+                action.sendGroupText(ctx.FromGroupId, "" + str111)
+            else:
+                action.sendGroupText(
+                    ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
+        elif strCont.find("还原") > -1:
+            args = [i.strip() for i in strCont.split(" ") if i.strip()]
+            if len(args) == 3:
+                str1112 = decoder(args[2])
+                action.sendGroupText(ctx.FromGroupId, "还原为:\n" + str1112)
             else:
                 action.sendGroupText(
                     ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
@@ -2449,9 +2835,17 @@ def receive_AT_group_msg(ctx: GroupMsg):
                 action.sendGroupText(
                     ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
         elif strCont.find("说说") > -1 or strCont.find("喊一声") > -1 or strCont.find("说一声") > -1:
+            if CheckCoins(strSendQQID, 1) == False:
+                action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能1金币一次")
+                return 1
+            # print("strCont===>"+strCont)
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
-            if len(args) == 3:
-                vocccPath = text_to_speech(args[2])
+            strHead = args[0]
+            if len(args) >= 3:
+                strHead2 = args[1]
+                strSsss = strCont.replace(strHead, "")
+                strSsss = strSsss.replace(strHead2, "")
+                vocccPath = text_to_speech(strSsss)
                 if len(vocccPath) > 0:
                     action.sendGroupVoice(
                         ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath))
@@ -2463,17 +2857,6 @@ def receive_AT_group_msg(ctx: GroupMsg):
             else:
                 action.sendGroupText(
                     ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
-
-        elif strCont.find("骂人") > -1:
-            urlMMM = "https://fun.886.be/api.php?lang=zh_cn&level=min"
-            html = requests.get(urlMMM)
-            strConnn = str(html.text)
-            action.sendGroupText(ctx.FromGroupId, content=strConnn)
-            vocccPath12 = text_to_speech(strConnn)
-            if len(vocccPath12) > 0:
-                action.sendGroupVoice(
-                    ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
-            #
         else:
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             text = "ERROR!!! "
@@ -2497,8 +2880,11 @@ def receive_PIC_group_msg(ctx: GroupMsg):
     global nAAAAAAAA
     global nBBBBBB
     global bBotClose
+    global dataNudeGroupData
+    strGID = str(ctx.FromGroupId)
+    strSendQQID = str(ctx.FromUserId)
     if bBotClose:
-        action.sendGroupText(ctx.FromGroupId, "已关机")
+        # action.sendGroupText(ctx.FromGroupId, "已关机")
         return 1
 
     objCtx = json.loads(ctx.Content)
@@ -2512,6 +2898,9 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 
     nIndex = 1
     if strCont.find("幻影坦克") > -1 and len(picArr) == 2:
+        if CheckCoins(strSendQQID, 10) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+            return 1
 
         for i in picArr:
             strUrlqq = i["Url"]
@@ -2535,65 +2924,68 @@ def receive_PIC_group_msg(ctx: GroupMsg):
             action.sendGroupText(ctx.FromGroupId, "\n" +
                                  "合成错误，抱歉!!!!!!!!!!!!", ctx.FromUserId)
 
-    elif strCont.startswith("333444111脱衣") and len(picArr) == 1:
-        nAAAAAAAA = nAAAAAAAA + 1
-
-        if strCont == "脱衣":
-            strUrlqq = picArr[0]["Url"]
-            html = requests.get(strUrlqq)
-            with open('./222111/' + str(nAAAAAAAA) + '.png', 'wb') as file:
-                file.write(html.content)
-            strADB = "./dreampower run --input 222111/" + str(nAAAAAAAA) + ".png --output 222111/" + str(
-                nAAAAAAAA) + "ot.png --cpu --n-cores 4 --experimental-color-transfer --auto-resize --nsize 1 --bsize 1.6 --hsize 1 --vsize 1"
-            os.system(strADB)
-
-            print(time.strftime("FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
-            with open("./222111/" + str(nAAAAAAAA) + "ot.png", 'rb') as f:  # 以二进制读取图片
-                data = f.read()
-                encodestr = base64.b64encode(data).decode()  # 得到 byte 编码的数据
-                action.sendGroupPic(
-                    ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
-
-        else:
-            args = [i.strip() for i in strCont.split(" ") if i.strip()]
-
-            #print("assssssssssssdasd" + str(len(args)))
-
-            if len(args) == 7:
-                strTypeaa = " --auto-resize "
-                if args[1] == "2":
-                    strTypeaa = " --auto-resize-crop "
-                elif args[1] == "3":
-                    strTypeaa = " --auto-rescale "
-                strAAAA = " --experimental-color-transfer "
-                if args[6] == "0":
-                    strAAAA = " "
-
-                strUrlqq = picArr[0]["Url"]
-                html = requests.get(strUrlqq)
-                with open('./11/' + str(nAAAAAAAA) + '.png', 'wb') as file:
-                    file.write(html.content)
-
-                strADB = "./dreampower run --input 11/" + str(nAAAAAAAA) + ".png --output 11/" + str(nAAAAAAAA) + "ot.png --cpu --n-cores 4 " + \
-                    strTypeaa + strAAAA + "--bsize " + \
-                    args[2] + "  --nsize " + args[3] + \
-                    " --vsize " + args[4] + " --hsize " + args[5]
-                os.system(strADB)
-
-                print(time.strftime(
-                    "FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
-                with open("./11/" + str(nAAAAAAAA) + "ot.png", 'rb') as f:  # 以二进制读取图片
-                    data = f.read()
-                    encodestr = base64.b64encode(
-                        data).decode()  # 得到 byte 编码的数据
-                    action.sendGroupPic(
-                        ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
-
-            else:
-                action.sendGroupText(
-                    ctx.FromGroupId, "参数少了!需要: 脱衣 图片缩放类型 Boob大小 Ru头大小 Vagina大小 yin毛大小 是否使用原图颜色 \n 比如: 脱衣 1 1.5 1 1 0.9 1", ctx.FromUserId)
+    # elif strCont.startswith("333444111脱衣") and len(picArr) == 1:
+    #     nAAAAAAAA = nAAAAAAAA + 1
+    #     if strCont == "脱衣":
+    #         strUrlqq = picArr[0]["Url"]
+    #         html = requests.get(strUrlqq)
+    #         with open('./222111/' + str(nAAAAAAAA) + '.png', 'wb') as file:
+    #             file.write(html.content)
+    #         strADB = "./dreampower run --input 222111/" + str(nAAAAAAAA) + ".png --output 222111/" + str(
+    #             nAAAAAAAA) + "ot.png --cpu --n-cores 4 --experimental-color-transfer --auto-resize --nsize 1 --bsize 1.6 --hsize 1 --vsize 1"
+    #         os.system(strADB)
+    #         print(time.strftime("FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
+    #         with open("./222111/" + str(nAAAAAAAA) + "ot.png", 'rb') as f:  # 以二进制读取图片
+    #             data = f.read()
+    #             encodestr = base64.b64encode(data).decode()  # 得到 byte 编码的数据
+    #             action.sendGroupPic(
+    #                 ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+    #     else:
+    #         args = [i.strip() for i in strCont.split(" ") if i.strip()]
+    #         #print("assssssssssssdasd" + str(len(args)))
+    #         if len(args) == 7:
+    #             strTypeaa = " --auto-resize "
+    #             if args[1] == "2":
+    #                 strTypeaa = " --auto-resize-crop "
+    #             elif args[1] == "3":
+    #                 strTypeaa = " --auto-rescale "
+    #             strAAAA = " --experimental-color-transfer "
+    #             if args[6] == "0":
+    #                 strAAAA = " "
+    #             strUrlqq = picArr[0]["Url"]
+    #             html = requests.get(strUrlqq)
+    #             with open('./11/' + str(nAAAAAAAA) + '.png', 'wb') as file:
+    #                 file.write(html.content)
+    #             strADB = "./dreampower run --input 11/" + str(nAAAAAAAA) + ".png --output 11/" + str(nAAAAAAAA) + "ot.png --cpu --n-cores 4 " + \
+    #                 strTypeaa + strAAAA + "--bsize " + \
+    #                 args[2] + "  --nsize " + args[3] + \
+    #                 " --vsize " + args[4] + " --hsize " + args[5]
+    #             os.system(strADB)
+    #             print(time.strftime(
+    #                 "FINISH!!!!!!!!! %Y-%m-%d %H:%M:%S", time.localtime()))
+    #             with open("./11/" + str(nAAAAAAAA) + "ot.png", 'rb') as f:  # 以二进制读取图片
+    #                 data = f.read()
+    #                 encodestr = base64.b64encode(
+    #                     data).decode()  # 得到 byte 编码的数据
+    #                 action.sendGroupPic(
+    #                     ctx.FromGroupId, picBase64Buf=encodestr, content="OK!!!!", atUser=ctx.FromUserId)
+    #         else:
+    #             action.sendGroupText(
+    #                 ctx.FromGroupId, "参数少了!需要: 脱衣 图片缩放类型 Boob大小 Ru头大小 Vagina大小 yin毛大小 是否使用原图颜色 \n 比如: 脱衣 1 1.5 1 1 0.9 1", ctx.FromUserId)
 
     elif strCont.startswith("脱衣") and len(picArr) == 1:
+        bbbty = False
+        try:
+            bbbty = dataNudeGroupData[strGID]
+        except:
+            bbbty = False
+        if bbbty == False:
+            action.sendGroupText(ctx.FromGroupId, "无功能")
+            return 1
+
+        if CheckCoins(strSendQQID, 1000) == False:
+            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能1000金币一次")
+            return 1
         nAAAAAAAA = nAAAAAAAA + 1
         strUrlqq = picArr[0]["Url"]
         html = requests.get(strUrlqq)
@@ -2639,11 +3031,17 @@ def REV_FRD_MSG(ctx: FriendMsg):
     nSendID = ctx.FromUin
     strConFrd = ctx.Content
     if ctx.FromUin == bMasterQQ:
-        if strConFrd.startswith("发群消息"):
+        if strConFrd.startswith("群消息"):
             args = [i.strip() for i in strConFrd.split(" ") if i.strip()]
             strreww = args[1]
             FromGroupId = int(args[2])
             action.sendGroupText(FromGroupId, strreww)
+            
+        if strConFrd.startswith("私聊"):
+            args = [i.strip() for i in strConFrd.split(" ") if i.strip()]
+            strreww = args[1]
+            FromGroupId = int(args[2])
+            action.sendFriendText(FromGroupId, strreww)
 
         if strConFrd== "关机":
             action.sendFriendText(nSendID, "正在关机")
@@ -2663,12 +3061,20 @@ def REV_FRD_MSG(ctx: FriendMsg):
     else:
         strMSG = "这个人:"+str(nSendID)+"  给你发消息:"+strConFrd
         action.sendFriendText(bMasterQQ, strMSG)
+
+        # action.getUserList
             
             
 def restart_program():
   python = sys.executable
   os.execl(python, python, * sys.argv)
 
+lastBotMsg = []
+@bot.on_group_msg
+def revAllGroupMsg(ctx: GroupMsg):
+    global lastBotMsg
+    if(ctx.FromUserId == botQQ):
+        lastBotMsg.append(ctx)
 
 
 @bot.when_disconnected(every_time=True)
@@ -2683,16 +3089,149 @@ def connected():
     o = 0
     # print('socket连接成功~')
 
-# @bot.on_group_msg
-# @deco.ignore_botself
-# @deco.these_msgtypes('TextMsg')
-# def help(ctx: GroupMsg):
-#     if ctx.Content == "帮助":
-#         # print("+++++++++++>" + bot.plugMgr.help)
-#         action.sendGroupText(ctx.FromGroupId, bot.plugMgr.help)
+
+
+
+elsGameData = {}
+with open(curFileDir / "elsGame.json", "r", encoding="utf-8") as f:
+    elsCtx = json.load(f)
+    try:
+        dataStr = elsCtx['data']
+        elsGameData = dataStr
+    except:
+        elsGameData = {}
+
+def SaveElsGameData():
+    with open(curFileDir / "elsGame.json", 'w', encoding="utf-8")as f:
+        data = {"data": elsGameData}
+        json.dump(data, f)
+
+
+
+
+@bot.on_group_msg
+@deco.ignore_botself
+@deco.these_msgtypes('TextMsg')
+def EluosiGame(ctx: GroupMsg):
+    global elsGameData
+    global bBotClose
+    strGID = str(ctx.FromGroupId)
+    strCont = ctx.Content
+    nQQID = str(ctx.FromUserId)
+
+    if ctx.FromUserId == bMasterQQ:
+        if strCont.startswith("群发金币"):
+            args = [i.strip() for i in strCont.split(" ") if i.strip()]
+            if len(args) == 2:
+                nC = int(args[1])
+                userslist = action.getGroupMembers(ctx.FromGroupId)
+                for x in userslist:
+                    uID = str(x["MemberUin"])
+                    try:
+                        elsGameData[uID]["coins"] += nC
+                    except:
+                        elsGameData[uID] = {}
+                        elsGameData[uID]["coins"]  = nC
+                        elsGameData[uID]["signTime"]  = 0
+                SaveElsGameData()
+                action.sendGroupText(ctx.FromGroupId, "本群金币发送成功")
+
+
+    if bBotClose:
+        # action.sendGroupText(ctx.FromGroupId, "已关机")
+        return 1
+    if strCont == "机器人签到" or strCont == "获取金币":
+        signTime = int(time.time()) #秒级时间戳
+        nCoins = random.randint(30, 60)
+
+
+        # print("nCoinsnCoins"+str(nCoins) + " signTime "+str(signTime))
+        # print("elsGameDataelsGameData==>"+str(elsGameData))
+        try:
+            lastSignTime = elsGameData[nQQID]["signTime"]
+            if signTime - lastSignTime > 43200:
+                elsGameData[nQQID]["coins"] += nCoins
+                elsGameData[nQQID]["signTime"] = signTime
+            else:
+                action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n12小时才能签到一次哦")
+                return 1
+        except:
+            elsGameData[nQQID] = {}
+            elsGameData[nQQID]["coins"]  = nCoins
+            elsGameData[nQQID]["signTime"]  = signTime
+        
+        action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n今日签到领取了"+str(nCoins)+"个金币, 剩余"+str(elsGameData[nQQID]["coins"])+"个金币, \n可以用来看买家秀,让机器人骂人,看二次元图 别再用光了")
+        SaveElsGameData()
+    if strCont == "查询金币":
+        nCoins = 0
+        try:
+            nCoins = elsGameData[nQQID]["coins"]
+        except:
+            elsGameData[nQQID] = {}
+            elsGameData[nQQID]["coins"] = 0
+            elsGameData[nQQID]["signTime"] = 0
+            nCoins = 0
+        action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n你剩余"+str(nCoins)+"个金币, \n可以用来看买家秀,让机器人骂人,看二次元图 \n别再用光了")
+
+    if strCont.startswith("赠送金币"):
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        if len(args) != 3:
+            action.sendGroupText(ctx.FromGroupId, "赠送错误!!! 输入 赠送金币 QQ号 金币数 来赠送")
+        else:
+            nMyCoins = 0
+            try:
+                nMyCoins = elsGameData[nQQID]["coins"]
+            except:
+                elsGameData[nQQID] = {}
+                elsGameData[nQQID]["coins"] = 0
+                elsGameData[nQQID]["signTime"] = 0
+                nMyCoins = 0
+
+            strQQ = str(args[1])
+            nCoins = 0
+            try:
+                nCoins = int(args[2])
+            except:
+                action.sendGroupText(ctx.FromGroupId, "赠送错误!!! 别送什么乱七八糟的东西")
+                return 1
+            if nMyCoins < nCoins:
+                action.sendGroupText(ctx.FromGroupId, "赠送错误!!! 自己就"+str(nMyCoins)+"个金币, 别想着送了")
+            else:
+                try:
+                    elsGameData[strQQ]["coins"] += nCoins
+                except:
+                    elsGameData[strQQ] = {}
+                    elsGameData[strQQ]["coins"] = nCoins
+                    elsGameData[strQQ]["signTime"] = 0
+
+                elsGameData[nQQID]["coins"] -= nCoins
+                SaveElsGameData()
+                action.sendGroupText(ctx.FromGroupId, "赠送成功!!!"+ nQQID +" 你还剩"
+                    +str(elsGameData[nQQID]["coins"])+"金币\n对方剩余"+str(elsGameData[strQQ]["coins"])+"个金币")
+
 
 
 # r = redis.Redis(host='127.0.0.1', port=6379)
+
+def CheckCoins(strID: str, nCost: int):
+    global elsGameData
+    
+    playerData = {}
+    try:
+        playerData = elsGameData[strID]
+    except:
+        elsGameData[strID] = {}
+        elsGameData[strID]["coins"] = 0
+        elsGameData[strID]["signTime"] = 0
+    playerData = elsGameData[strID]
+
+    playerCoins = playerData["coins"]
+    if(nCost > playerCoins):
+        return False
+    else:
+        elsGameData[strID]["coins"] -= nCost
+        SaveElsGameData()
+        return True
 
 if __name__ == '__main__':
     # ---------------------------------------------------------------------------------
