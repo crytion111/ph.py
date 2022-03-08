@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from unittest.mock import Base
 from bs4 import BeautifulSoup
 import urllib.request
 
@@ -50,6 +51,7 @@ from wordcloud import WordCloud, STOPWORDS
 from pathlib import Path
 from PIL import ImageEnhance
 from typing import *
+from threading import Timer
 
 # print("=1111111===========>" + str(jconfig.bot))
 # print("=22222222===========>" + str(jconfig.superAdmin))
@@ -74,8 +76,9 @@ nXXXCount = 0
 
 session = requests.Session()
 
-# wilteList = []
-wilteList = []
+# wilteList = [779119500, 273590953, 234088768]
+wilteList = [779119500, 273590953, 511165870, 135365398, 861644376]
+blackList = [143626394]
 
 for x in wilteList:
     strID = str(x)
@@ -110,8 +113,79 @@ with open(curFileDir / "mr.json", "r", encoding="utf-8") as f:
 
 
 
-np.seterr(divide="ignore", invalid="ignore")
 
+
+# 贷款数据库
+dkDataArr = []
+curFileDir = Path(__file__).absolute().parent  # 当前文件路径
+with open(curFileDir / "dk.json", "r", encoding="utf-8") as f:
+    plpCtx = json.load(f)
+    dataArr = plpCtx['dkData'] 
+    if(dataArr and len(dataArr) > 0):
+        dkDataArr = dataArr
+
+
+
+
+def loopCheckDK():
+    Timer(3, checkDaikuan).start()
+    
+
+
+def checkDaikuan():
+    if dkDataArr and len(dkDataArr) > 0:
+        for dkD in dkDataArr:
+            dTime = dkD["dTime"]
+            nTime = int(time.time())
+            if nTime - dTime >= 600:
+                removeCoins(dkD)
+                dkDataArr.remove(dkD)
+                SaveDKData()
+
+    loopCheckDK()
+
+
+def removeCoins(dkD):
+    global elsGameData
+
+    dUid = dkD["dUid"]
+    dGid = dkD["dGid"]
+    strUID = str(dUid)
+    
+    try:
+        elsGameData[strUID]["coins"] -= 11000
+    except:
+        elsGameData[strUID] = {}
+        elsGameData[strUID]["coins"] = -11000
+        elsGameData[strUID]["signTime"] = 0
+    
+    strUCoins = str(elsGameData[strUID]["coins"])
+
+    action.sendGroupText(dGid, "贷款时间到,收回你的11000块贷款,其中1000块利息, 你还剩"+strUCoins+"个金币",  atUser=int(dUid))
+    SaveElsGameData()
+
+
+
+loopCheckDK()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+np.seterr(divide="ignore", invalid="ignore")
 
 #---------------------------------------TJTKTK
 
@@ -467,8 +541,8 @@ def toBase64(imgUrl):
 
 def CheckYYYY(strB64):
     pay_load = {
-        'api_key': "",
-        'api_secret': "",
+        'api_key': "X5CYnsaJJCgMJXMPo9JGyHWfsqWx80gr",
+        'api_secret': "K1zHwlcl1RalyoLOH3vWLsouLDjPcl69",
         'return_attributes': 'age,gender,skinstatus,beauty,smiling',
         'image_base64': strB64
     }
@@ -484,8 +558,10 @@ def CheckYYYY(strB64):
         r_json = json.loads(r.text)
         if r.status_code == 200:
             faceNum = r_json["face_num"]
-            if faceNum != 1:
-                return "暂时只能分辨一张脸"
+            if faceNum > 1:
+                return "暂时只能分辨一张脸, 图中的人脸数="+str(faceNum)
+            elif faceNum == 0:
+                return "传的图没有人脸!!!!"
             else:
                 faceData = r_json["faces"][0]
                 attributes = faceData["attributes"]
@@ -2210,6 +2286,7 @@ def OnGroupMSG(ctx: GroupMsg):
     global plpDataArr
     global mrDataArr
     global bCloseXX
+    global blackList
     if bBotClose:
         # action.sendGroupText(ctx.FromGroupId, "已关机")
         return 1
@@ -2217,6 +2294,37 @@ def OnGroupMSG(ctx: GroupMsg):
     strGID = str(ctx.FromGroupId)
     strCont = ctx.Content
     strSendQQID = str(ctx.FromUserId)
+
+    if strCont.startswith("小说续写") or strCont.startswith("续写") or strCont.startswith("小说续写"):
+        if bCloseXX:
+            action.sendGroupText(ctx.FromGroupId, "电脑需要办公, 暂时停掉续写功能")
+            return 1
+        ccc = 15
+        if blackList[0] == ctx.FromGroupId:
+            ccc = 0
+        if CheckCoins(strSendQQID, ccc, ctx.FromGroupId) == False:
+            return 1
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        strHead = args[0]
+        strSsss = strCont.replace(strHead, "")
+        nXXXCount += 1
+        if(nXXXCount > 1):
+            action.sendGroupText(ctx.FromGroupId, "任务太多,等等等再试试!!!!!!")
+            nXXXCount -= 1
+        else:
+            action.sendGroupText(ctx.FromGroupId, "好的,我正在构思")
+    
+            strres = ""
+            try:
+                strres = AIXXX(strSsss)
+            except Exception as eses: 
+                strres = str(eses)
+            # strres = AIXXX(strSsss)
+            action.sendGroupText(ctx.FromGroupId, strres)
+            nXXXCount -= 1
+
+    if blackList[0] == ctx.FromGroupId:
+        return 1
 
     if botQQ == ctx.FromUserId:
         return 1
@@ -2262,6 +2370,14 @@ def OnGroupMSG(ctx: GroupMsg):
             re222 = chs2yin(args[1], 0)
             action.sendGroupText(ctx.FromGroupId, re222)
 
+    if strCont.startswith("添加白名单") and ctx.FromUserId == bMasterQQ:
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        if len(args) == 2:
+            aaa = args[1]
+            dataCiliGroupData[aaa] = True
+            dataSetuGroupData[aaa] = True
+            dataNudeGroupData[aaa] = True
+            action.sendGroupText(ctx.FromGroupId, "此群内可以使用色图, 磁力, 脱衣")
     if strCont == "关闭磁力" and ctx.FromUserId == bMasterQQ:
         dataCiliGroupData[strGID] = False
         action.sendGroupText(ctx.FromGroupId, "本群磁力已关闭", ctx.FromUserId)
@@ -2297,8 +2413,7 @@ def OnGroupMSG(ctx: GroupMsg):
             action.sendGroupText(
                 ctx.FromGroupId, "磁力关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
             return 1
-        if CheckCoins(strSendQQID, 20) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能20金币一次")
+        if CheckCoins(strSendQQID, 20, ctx.FromGroupId) == False:
             return 1
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
         if len(args) == 2:
@@ -2333,31 +2448,7 @@ def OnGroupMSG(ctx: GroupMsg):
     if strCont == "开启续写":
         bCloseXX = False
         action.sendGroupText(ctx.FromGroupId, "开启续写")
-    if strCont.startswith("小说续写") or strCont.startswith("续写") or strCont.startswith("小说续写"):
-        if bCloseXX:
-            action.sendGroupText(ctx.FromGroupId, "电脑需要办公, 暂时停掉续写功能")
-            return 1
-        if CheckCoins(strSendQQID, 15) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能15金币一次")
-            return 1
-        args = [i.strip() for i in strCont.split(" ") if i.strip()]
-        strHead = args[0]
-        strSsss = strCont.replace(strHead, "")
-        nXXXCount += 1
-        if(nXXXCount > 1):
-            action.sendGroupText(ctx.FromGroupId, "任务太多,等等等再试试!!!!!!")
-            nXXXCount -= 1
-        else:
-            action.sendGroupText(ctx.FromGroupId, "好的,我正在构思")
-    
-            strres = ""
-            try:
-                strres = AIXXX(strSsss)
-            except Exception as eses: 
-                strres = str(eses)
-            # strres = AIXXX(strSsss)
-            action.sendGroupText(ctx.FromGroupId, strres)
-            nXXXCount -= 1
+
         
 
 # 垃圾分类============================================================================
@@ -2455,8 +2546,7 @@ def OnGroupMSG(ctx: GroupMsg):
 
 # 买家秀 ------------------------------
     if strCont.find("买家秀") > -1:
-        if CheckCoins(strSendQQID, 10) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+        if CheckCoins(strSendQQID, 10, ctx.FromGroupId) == False:
             return 1
 
         indexInt = random.randint(1, 6)
@@ -2473,8 +2563,7 @@ def OnGroupMSG(ctx: GroupMsg):
 
 # 幻影坦克 ------------------------------
     if strCont == "幻影坦克":
-        if CheckCoins(strSendQQID, 10) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+        if CheckCoins(strSendQQID, 10, ctx.FromGroupId) == False:
             return 1
 
         taobaoUrl = getYubanPic("")
@@ -2488,8 +2577,7 @@ def OnGroupMSG(ctx: GroupMsg):
         action.sendGroupPic(ctx.FromGroupId, picBase64Buf=base64_str,
                                  content="OK!!!!", atUser=ctx.FromUserId)
     if strCont == "r18幻影坦克":
-        if CheckCoins(strSendQQID, 20) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能20金币一次")
+        if CheckCoins(strSendQQID, 20, ctx.FromGroupId) == False:
             return 1
         taobaoUrl = getYubanPic("", 1)
         SavePic(taobaoUrl)
@@ -2623,8 +2711,7 @@ def OnGroupMSG(ctx: GroupMsg):
                 ctx.FromGroupId, "图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
             return 1
 
-        if CheckCoins(strSendQQID, 10) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+        if CheckCoins(strSendQQID, 10, ctx.FromGroupId) == False:
             return 1
 
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2656,7 +2743,9 @@ def receive_AT_group_msg(ctx: GroupMsg):
     global bMasterQQ
     global botQQ
     global lastBotMsg
-
+    global blackList
+    if blackList[0] == ctx.FromGroupId:
+        return 1
     objCtx = json.loads(ctx.Content)
     strCont = objCtx['Content']
     atUserID = objCtx['UserID'][0]
@@ -2664,18 +2753,30 @@ def receive_AT_group_msg(ctx: GroupMsg):
     sendUid = ctx.FromUserId
     strSendQQID = str(ctx.FromUserId)
     nGroupID = ctx.FromGroupId
+    if bBotClose:
+        return 1
+
     # print("......" + str(ctx))
 
     # print("#asdasda==" + str(strCont.find("菜单")))
     if strCont.find("骂") > -1 and atUserID != botQQ and atUserID != bMasterQQ:
+
+        action.sendGroupText(ctx.FromGroupId, "骂人不好, 还是摸摸他吧..发送 头像表情包 可以获取帮助")
+        return 1
+
+        admList = action.getGroupAdminList(ctx.FromGroupId, True)
+        # print("admListadmListadmList===> "+str(admList))
+        qzQQ = admList[0]["MemberUin"]
+        if qzQQ == atUserID:
+            action.sendGroupText(ctx.FromGroupId, "群主有免骂权, 不服的建议推翻群主统治")
+            return 1
         if bBotClose:
             action.sendGroupText(ctx.FromGroupId, "已关机")
             return 1
         # urlMMM = "https://fun.886.be/api.php?lang=zh_cn"
         # html = requests.get(urlMMM)
         # strConnn = str(html.text)
-        if CheckCoins(strSendQQID, 1) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能1金币一次")
+        if CheckCoins(strSendQQID, 3, ctx.FromGroupId) == False:
             return 1
         strConnn = GetMrStr()
         action.sendGroupText(
@@ -2684,6 +2785,269 @@ def receive_AT_group_msg(ctx: GroupMsg):
         if len(vocccPath12) > 0:
             action.sendGroupVoice(
                 ctx.FromGroupId, voiceBase64Buf=file_to_base64(vocccPath12))
+
+
+    # if strCont.find("抢劫") > -1 and atUserID != botQQ and atUserID != bMasterQQ:
+    nTime = int(time.time())
+    nLastActionTime = 0
+    # nCDTIme = 60*60*2
+    nCDTIme = 60*3
+    if strCont.find("抢劫") > -1:
+        stratUserID = str(atUserID)
+        enemyCOins = 0
+        myCOins = 0
+        try:
+            enemyCOins = elsGameData[stratUserID]["coins"]
+        except:
+            elsGameData[stratUserID] = {}
+            elsGameData[stratUserID]["coins"]  = 0
+            elsGameData[stratUserID]["signTime"]  = 0
+            elsGameData[stratUserID]["nLastActionTime"]  = 0
+            enemyCOins = 0
+
+        try:
+            nLastActionTime = elsGameData[strSendQQID]["nLastActionTime"]
+        except:
+            elsGameData[strSendQQID]["nLastActionTime"]  = 0
+        try:
+            myCOins = elsGameData[strSendQQID]["coins"]
+        except:
+            elsGameData[strSendQQID] = {}
+            elsGameData[strSendQQID]["coins"]  = 0
+            elsGameData[strSendQQID]["signTime"]  = 0
+            myCOins = 0
+
+        if nTime - nLastActionTime <= nCDTIme:
+            action.sendGroupText(ctx.FromGroupId, "每"+str(nCDTIme)+"秒才能行动一次, 你还剩"+ str(nCDTIme - (nTime - nLastActionTime))+"秒才能行动", atUser=ctx.FromUserId)
+            return 1
+        
+        if myCOins <= 10:
+            action.sendGroupText(ctx.FromGroupId, "收手吧, 你只剩"+str(myCOins)+"金币了, 没钱了", atUser=ctx.FromUserId)
+            return 1
+
+        if myCOins > enemyCOins:
+            halfC = int(myCOins / 2)
+            if halfC > 10:
+                halfC = 10
+            if halfC <= 0:
+                halfC = 0
+            elsGameData[strSendQQID]["coins"] -= halfC
+            elsGameData[stratUserID]["coins"] += halfC
+            action.sendGroupText(ctx.FromGroupId, "用户"+stratUserID+"的钱都没你"+ strSendQQID +"的多, 还抢个JB, 已经分了你的"+str(halfC)+"个金币给他了!")
+        else:
+            enemyRan = random.randint(1, enemyCOins)
+            myRan = random.randint(1, myCOins)
+            if enemyRan >= myRan:
+                halfC = int(myCOins / 2)
+                if halfC <= 0:
+                    halfC = 0
+                if halfC <= 0:
+                    halfC = 0
+                elsGameData[strSendQQID]["coins"] -= halfC
+                elsGameData[stratUserID]["coins"] += halfC
+                action.sendGroupText(ctx.FromGroupId, "用户"+stratUserID+"战斗力为"+str(enemyCOins)
+                    +"\n你"+ strSendQQID +"的战斗力为"+str(myCOins)+"\n一番激战后你失败了,输了"+str(halfC)+"个金币给他")
+            else:
+                halfC = int(enemyCOins / 2)
+                if halfC <= 0:
+                    halfC = 0
+                elsGameData[strSendQQID]["coins"] += halfC
+                elsGameData[stratUserID]["coins"] -= halfC
+                action.sendGroupText(ctx.FromGroupId, "用户"+stratUserID+"战斗力为"+str(enemyCOins)
+                    +"\n你"+ strSendQQID +"的战斗力为"+str(myCOins)+"\n一番激战后你赢了,抢到了"+str(halfC)+"个金币")
+
+        elsGameData[strSendQQID]["nLastActionTime"] = nTime
+        SaveElsGameData()
+
+    if strCont.find("决斗") > -1:
+        stratUserID = str(atUserID)
+        enemyCOins = 0
+        myCOins = 0
+        try:
+            enemyCOins = elsGameData[stratUserID]["coins"]
+        except:
+            elsGameData[stratUserID] = {}
+            elsGameData[stratUserID]["coins"]  = 0
+            elsGameData[stratUserID]["signTime"]  = 0
+            elsGameData[stratUserID]["nLastActionTime"]  = 0
+            enemyCOins = 0
+
+        try:
+            nLastActionTime = elsGameData[strSendQQID]["nLastActionTime"]
+        except:
+            elsGameData[strSendQQID]["nLastActionTime"]  = 0
+
+        try:
+            myCOins = elsGameData[strSendQQID]["coins"]
+        except:
+            elsGameData[strSendQQID] = {}
+            elsGameData[strSendQQID]["coins"]  = 0
+            elsGameData[strSendQQID]["signTime"]  = 0
+            myCOins = 0
+
+        if nTime - nLastActionTime <= nCDTIme:
+            action.sendGroupText(ctx.FromGroupId, "每"+str(nCDTIme)+"秒才能行动一次, 你还剩"+ str(nCDTIme - (nTime - nLastActionTime))+"秒才能行动", atUser=ctx.FromUserId)
+            return 1
+
+        if myCOins <= 0:
+            action.sendGroupText(ctx.FromGroupId, "没钱谁和你赌!!!, 你只剩"+str(myCOins)+"金币了, 没钱了", atUser=ctx.FromUserId)
+            return 1
+
+        if enemyCOins <= 0:
+            action.sendGroupText(ctx.FromGroupId, "这人没钱,和他赌不值得", atUser=ctx.FromUserId)
+            return 1
+        
+        strRes12 = "决斗开始,本决斗为俄罗斯转盘,6发子弹射自己,看谁先死,因为是你("+strSendQQID+")发起的,所以你先开枪\n\n"
+        shootNum = random.randint(0, 5)
+        for ii in range(6):
+            if ii % 2 == 0:
+                if shootNum == ii:
+                    strRes12 += "第"+str(ii+1)+"枪, PONG!!!!! 你杀了自己!!!!输了!!!\n"
+                    break
+                else:
+                    strRes12 += "第"+str(ii+1)+"枪, 枪没响,到对方了\n"
+            else:
+                if shootNum == ii:
+                    strRes12 += "第"+str(ii+1)+"枪, PONG!!!!! 对方枪响了!!!!你赢了!!!!\n"
+                    break
+                else:
+                    strRes12 += "第"+str(ii+1)+"枪, 对方枪没响,到你了\n"
+
+
+        #自己输了
+        if shootNum%2 == 0:
+            if myCOins >= enemyCOins:
+                strRes12 += "\n因为对方("+stratUserID+")只有"+str(enemyCOins)+"个金币, 所以他只赢了"+str(enemyCOins)+"金币!\n而你主动决斗失败,失去所有金币"
+                elsGameData[stratUserID]["coins"] += enemyCOins
+                elsGameData[strSendQQID]["coins"] -= myCOins
+            else:
+                strRes12 += "\n你输掉了所有的"+str(myCOins)+"金币!"
+                elsGameData[stratUserID]["coins"] += myCOins
+                elsGameData[strSendQQID]["coins"] -= myCOins
+        #自己赢了
+        else:
+            if myCOins >= enemyCOins:
+                strRes12 += "\n恭喜你赢了对方("+stratUserID+")所有金币"+str(enemyCOins)+"个!"
+                elsGameData[strSendQQID]["coins"] += enemyCOins
+                elsGameData[stratUserID]["coins"] -= enemyCOins
+            else:
+                strRes12 += "\n因为你只有"+str(myCOins)+"个金币, 所以你赢了"+str(myCOins)+"金币!"
+                elsGameData[strSendQQID]["coins"] += myCOins
+                elsGameData[stratUserID]["coins"] -= myCOins
+
+        action.sendGroupText(ctx.FromGroupId, strRes12)
+        elsGameData[strSendQQID]["nLastActionTime"] = nTime
+        SaveElsGameData()
+        return
+
+    if strCont.find("偷钱") > -1:
+        stratUserID = str(atUserID)
+        enemyCOins = 0
+        myCOins = 0
+        myStealNum = 0
+
+        try:
+            enemyCOins = elsGameData[stratUserID]["coins"]
+        except:
+            elsGameData[stratUserID] = {}
+            elsGameData[stratUserID]["coins"]  = 0
+            elsGameData[stratUserID]["signTime"]  = 0
+            elsGameData[stratUserID]["nLastActionTime"]  = 0
+            enemyCOins = 0
+
+        try:
+            nLastActionTime = elsGameData[strSendQQID]["nLastActionTime"]
+        except:
+            elsGameData[strSendQQID]["nLastActionTime"]  = 0
+        try:
+            myCOins = elsGameData[strSendQQID]["coins"]
+            myStealNum = elsGameData[strSendQQID]["steal"]
+        except:
+            elsGameData[strSendQQID] = {}
+            elsGameData[strSendQQID]["coins"]  = 0
+            elsGameData[strSendQQID]["signTime"]  = 0
+            myStealNum = 0
+            myCOins = 0
+
+
+        if nTime - nLastActionTime <= nCDTIme:
+            action.sendGroupText(ctx.FromGroupId, "每"+str(nCDTIme)+"秒才能行动一次, 你还剩"+ str(nCDTIme - (nTime - nLastActionTime))+"秒才能行动", atUser=ctx.FromUserId)
+            return 1
+
+        if myStealNum >= 10:
+            action.sendGroupText(ctx.FromGroupId, "造孽太多偷了别人10次, 收手, 放自己一马", atUser=ctx.FromUserId)
+            return 1
+        if enemyCOins <= 100:
+            action.sendGroupText(ctx.FromGroupId, "他就"+str(enemyCOins)+"个金币, 穷逼一个, 放他一马", atUser=ctx.FromUserId)
+            return 1
+        nStealcoinsNum = 0
+        nRandomNum = random.randint(0, 1000)
+        strRSRSR ="80%机会偷1%的钱,\n10%的机会偷2%的钱, \n8%会被发现并赔偿自己所有的钱,\n1%的机会偷4%的钱, \n0.5%的机会偷5%的钱, \n0.3%的机会偷6%, \n0.1%机会偷7%, \n0.1%机会偷50%\n一辈子只能偷10次\n\n"
+
+        floatPercent = 0
+        if nRandomNum <= 800 : #80%机会抢1%
+            floatPercent = 0.01
+            nStealcoinsNum = int(enemyCOins * floatPercent)
+        elif nRandomNum <= 900:#10%的机会偷2%的钱
+            floatPercent = 0.02
+            nStealcoinsNum = int(enemyCOins * floatPercent)
+        elif nRandomNum <= 980:#8%的机会被发现赔偿自己所有的钱
+            floatPercent = 0.03
+            nStealcoinsNum = -myCOins #int(enemyCOins * floatPercent)
+        elif nRandomNum <= 990:#1%的机会偷4%的钱
+            floatPercent = 0.04
+            nStealcoinsNum = int(enemyCOins * floatPercent)
+        elif nRandomNum <= 995:#0.5%的机会偷5%的钱
+            floatPercent = 0.05
+            nStealcoinsNum = int(enemyCOins * floatPercent)
+        elif nRandomNum <= 998:#0.3%的机会偷6%的钱
+            floatPercent = 0.06
+            nStealcoinsNum = int(enemyCOins * floatPercent)
+        elif nRandomNum <= 999:#0.3%的机会偷7%的钱
+            floatPercent = 0.07
+            nStealcoinsNum = int(enemyCOins * floatPercent)
+        elif nRandomNum == 1000:#0.3%的机会偷7%的钱
+            floatPercent = 0.5
+            nStealcoinsNum = int(enemyCOins * floatPercent)
+        
+        myStealNum += 1
+        elsGameData[strSendQQID]["steal"] = myStealNum
+        if floatPercent == 0.03:
+            strRSRSR += "你开始偷偷接近他, 伸手, 糟了, 被发现了, 你被打了一顿,赔偿了身上所有的钱("+str(myCOins)+"个金币)给对方"
+        elif floatPercent < 0.5:
+            strRSRSR += "本次行动运气不好,也就偷了"+str(nStealcoinsNum)+"个金币, 占比"+str(floatPercent)+",还剩"+str(10 - myStealNum)+"次机会"
+        else:
+            strRSRSR += "卧槽!!!!你运气爆表偷了他一半金币,共"+str(nStealcoinsNum)+"个,还剩"+str(10 - myStealNum)+"次机会"
+
+
+        elsGameData[strSendQQID]["coins"] += nStealcoinsNum
+        elsGameData[stratUserID]["coins"] -= nStealcoinsNum
+        elsGameData[strSendQQID]["nLastActionTime"] = nTime
+        SaveElsGameData()
+        action.sendGroupText(ctx.FromGroupId, strRSRSR, atUser=ctx.FromUserId)
+        return 1
+        
+    if sendUid == bMasterQQ:
+        if strCont.find("发金币") > -1:
+            args = [i.strip() for i in strCont.split(" ") if i.strip()]
+            allLength = len(args)
+            addCoins = 0
+            strQQ = str(atUserID)
+            try:
+                addCoins = int(args[allLength - 1])
+            except:
+                action.sendGroupText(ctx.FromGroupId, "格式错误", atUser=sendUid)
+                return 1
+
+            try:
+                elsGameData[strQQ]["coins"] += addCoins
+            except:
+                elsGameData[strQQ] = {}
+                elsGameData[strQQ]["coins"] = addCoins
+                elsGameData[strQQ]["signTime"] = 0
+            SaveElsGameData()
+            action.sendGroupText(ctx.FromGroupId, "管理员发金币成功, 你还剩"+str(elsGameData[strQQ]["coins"])+"个金币", atUser=atUserID)
+
 
     if(atUserID == botQQ):
         if sendUid == bMasterQQ:
@@ -2714,6 +3078,37 @@ def receive_AT_group_msg(ctx: GroupMsg):
         if bBotClose:
             action.sendGroupText(ctx.FromGroupId, "已关机")
             return 1
+
+        if strCont.find("贷款") > -1:
+
+            aaaINS = False
+
+            if dkDataArr and len(dkDataArr) > 0:
+                for dd in dkDataArr:
+                    if dd["dUid"] == sendUid:
+                        aaaINS = True
+                        break
+
+
+            if aaaINS == True:
+                action.sendGroupText(ctx.FromGroupId, "你有贷款在身, 等死吧!!!!!别再贷了!!!!", atUser=sendUid)
+                return 1
+
+            dtime = int(time.time())
+            dkD = {"dUid":sendUid, "dTime":dtime, "dGid":nGroupID}
+            dkDataArr.append(dkD)
+
+            try:
+                elsGameData[strSendQQID]["coins"] += 10000
+            except:
+                elsGameData[strSendQQID] = {}
+                elsGameData[strSendQQID]["coins"] = 10000
+                elsGameData[strSendQQID]["signTime"] = 0
+
+            SaveDKData()
+            action.sendGroupText(ctx.FromGroupId, "你贷款10000块成功, 10分钟后强制收回贷款和利息", atUser=sendUid)
+            return 1
+
         if strCont.find("菜单") > -1 or strCont.find("帮助") > -1:
 
             struuuu = '''
@@ -2738,6 +3133,7 @@ def receive_AT_group_msg(ctx: GroupMsg):
             ==>只有以下两个功能需要@机器人,别的功能别自作主张@它=\n
             @机器人  可以和机器人对话=\n
             @机器人后回复 说说+内容,就能让机器人读出内容 比如@jj-姬器人 说说 你是傻逼=\n
+            @机器人后回复 贷款\n
 
             =>怎么添加机器人到自己的群:\n
             =>1:加机器人好友, 2:邀请它入群, 3:使用\n
@@ -2746,14 +3142,19 @@ def receive_AT_group_msg(ctx: GroupMsg):
             struuuu += "\n" +bot.plugMgr.help+"\n\n"
 
             if sendUid == bMasterQQ:
-                struuuu += "@机器人加 撤回 添加白名单 添加黑名单\n"
-                struuuu += "私聊 群消息 私聊 关机 开机 重启 群列表\n"
+                struuuu += "@机器人加 撤回 添加白名单 添加黑名单 \n"
+                struuuu += "群发金币 全群通知\n"
+                struuuu += "私聊 群消息 私聊 关机 开机 重启 群列表\n\n"
 
-            struuuu += "发送 机器人签到 获取金币\n\n"
-            struuuu += "发送 查询金币 查询金币\n\n"
-            struuuu += "买家秀, 续写小说, 幻影坦克, 骂人, AI脱衣, 机器人说说+内容 这些功能需要金币\n"
+            struuuu += "发送 机器人签到 可以获取金币\n\n"
+            struuuu += "发送 查询金币 可以查询金币\n\n"
+            struuuu += "发送 赠送金币 QQ号 金币数  可以转账\n\n"
+            struuuu += "买家秀, 续写小说, 幻影坦克, 骂人, 机器人说说+内容 这些功能需要金币\n\n"
 
-            action.sendGroupText(ctx.FromGroupId, struuuu, ctx.FromUserId)
+            struuuu += "@一个人并发送 抢劫, 可抢劫他的金币\n"
+            struuuu += "@一个人并发送 决斗, 运行俄罗斯转盘游戏和他赌运气, 输了金币要清零, 赢了金币最高能翻倍\n"
+
+            action.sendGroupText(ctx.FromGroupId, struuuu)
         # 模特 ------------------------------
         elif strCont.find("来张美图") > -1 or strCont.find("来张色图") > -1 or strCont.find("来张图") > -1:
             bbbstat = False
@@ -2766,8 +3167,7 @@ def receive_AT_group_msg(ctx: GroupMsg):
                     ctx.FromGroupId, "AT图片关掉了, 请联系主人, 找不到就算了", ctx.FromUserId)
                 return 1
 
-            if CheckCoins(strSendQQID, 10) == False:
-                action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+            if CheckCoins(strSendQQID, 10, ctx.FromGroupId) == False:
                 return 1
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
             aaa = 0
@@ -2793,11 +3193,11 @@ def receive_AT_group_msg(ctx: GroupMsg):
             struuuu = '''
                         发送[脱衣 加一个图片],回复指定图片生成的AI脱衣图片(deepnude源码)\n
                         发送[来张图 搜索内容 r18开关(0普通, 1r18, 2随机)],比如[来张图 jk 1]=>回复jk的二次元r18图\n
+                        发送[r18幻影坦克]\n
                         '''
             action.sendGroupText(ctx.FromGroupId, struuuu, ctx.FromUserId)
         elif strCont.find("买家秀") > -1:
-            if CheckCoins(strSendQQID, 10) == False:
-                action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+            if CheckCoins(strSendQQID, 10, ctx.FromGroupId) == False:
                 return 1
             indexInt = random.randint(1, 6)
             taobaoUrl = "https://api.uomg.com/api/rand.img3"
@@ -2835,8 +3235,7 @@ def receive_AT_group_msg(ctx: GroupMsg):
                 action.sendGroupText(
                     ctx.FromGroupId, "输入的格式错误!", ctx.FromUserId)
         elif strCont.find("说说") > -1 or strCont.find("喊一声") > -1 or strCont.find("说一声") > -1:
-            if CheckCoins(strSendQQID, 1) == False:
-                action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能1金币一次")
+            if CheckCoins(strSendQQID, 2, ctx.FromGroupId) == False:
                 return 1
             # print("strCont===>"+strCont)
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -2881,6 +3280,9 @@ def receive_PIC_group_msg(ctx: GroupMsg):
     global nBBBBBB
     global bBotClose
     global dataNudeGroupData
+    global blackList
+    if blackList[0] == ctx.FromGroupId:
+        return 1
     strGID = str(ctx.FromGroupId)
     strSendQQID = str(ctx.FromUserId)
     if bBotClose:
@@ -2898,8 +3300,7 @@ def receive_PIC_group_msg(ctx: GroupMsg):
 
     nIndex = 1
     if strCont.find("幻影坦克") > -1 and len(picArr) == 2:
-        if CheckCoins(strSendQQID, 10) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能10金币一次")
+        if CheckCoins(strSendQQID, 15, ctx.FromGroupId) == False:
             return 1
 
         for i in picArr:
@@ -2983,8 +3384,7 @@ def receive_PIC_group_msg(ctx: GroupMsg):
             action.sendGroupText(ctx.FromGroupId, "无功能")
             return 1
 
-        if CheckCoins(strSendQQID, 1000) == False:
-            action.sendGroupText(ctx.FromGroupId, "用户:"+strSendQQID+" 金币不够了, 这个功能1000金币一次")
+        if CheckCoins(strSendQQID, 1000, ctx.FromGroupId) == False:
             return 1
         nAAAAAAAA = nAAAAAAAA + 1
         strUrlqq = picArr[0]["Url"]
@@ -3106,7 +3506,28 @@ def SaveElsGameData():
         data = {"data": elsGameData}
         json.dump(data, f)
 
+def SaveDKData():
+    with open(curFileDir / "dk.json", 'w', encoding="utf-8")as f:
+        data = {"dkData": dkDataArr}
+        json.dump(data, f)
 
+
+def takecoinsEle(elem):
+    return elem["coins"]
+
+
+
+hbData = []
+with open(curFileDir / "hb.json", "r", encoding="utf-8") as f:
+    elsCtx = json.load(f)
+    try:
+        hbData = elsCtx['hbData']
+    except:
+        hbData = []
+def SaveHBData():
+    with open(curFileDir / "hb.json", 'w', encoding="utf-8")as f:
+        data = {"hbData": hbData}
+        json.dump(data, f)
 
 
 @bot.on_group_msg
@@ -3115,10 +3536,19 @@ def SaveElsGameData():
 def EluosiGame(ctx: GroupMsg):
     global elsGameData
     global bBotClose
+    global blackList
+    global hbData
+    if blackList[0] == ctx.FromGroupId:
+        return 1
     strGID = str(ctx.FromGroupId)
     strCont = ctx.Content
     nQQID = str(ctx.FromUserId)
 
+    if bBotClose:
+        # action.sendGroupText(ctx.FromGroupId, "已关机")
+        return 1
+
+    
     if ctx.FromUserId == bMasterQQ:
         if strCont.startswith("群发金币"):
             args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -3135,43 +3565,128 @@ def EluosiGame(ctx: GroupMsg):
                         elsGameData[uID]["signTime"]  = 0
                 SaveElsGameData()
                 action.sendGroupText(ctx.FromGroupId, "本群金币发送成功")
+        if strCont.startswith("全群通知"):
+            args = [i.strip() for i in strCont.split(" ") if i.strip()]
+            if len(args) == 2:
+                nC = args[1]
+                glist = action.getGroupList()
+                for x in glist:
+                    action.sendGroupText(x["GroupId"], nC)
+                    time.sleep(1)
+        if strCont.startswith("发金币"):
+            args = [i.strip() for i in strCont.split(" ") if i.strip()]
+            if len(args) != 3:
+                action.sendGroupText(ctx.FromGroupId, "发金币错误!!! 输入 发金币 QQ号 金币数 来赠送")
+            else:  
+                strQQ = str(args[1])
+                nCoins = 0
+                try:
+                    nCoins = int(args[2])
+                except:
+                    action.sendGroupText(ctx.FromGroupId, "发金币错误!!! 别送什么乱七八糟的东西")
+                    return 1
+                try:
+                    elsGameData[strQQ]["coins"] += nCoins
+                except:
+                    elsGameData[strQQ] = {}
+                    elsGameData[strQQ]["coins"] = nCoins
+                    elsGameData[strQQ]["signTime"] = 0
+
+                SaveElsGameData()
+                action.sendGroupText(ctx.FromGroupId, "管理员发金币!!!\n  用户("+ strQQ +")还剩余"+str(elsGameData[strQQ]["coins"])+"个金币")
 
 
-    if bBotClose:
-        # action.sendGroupText(ctx.FromGroupId, "已关机")
-        return 1
-    if strCont == "机器人签到" or strCont == "获取金币":
+    if strCont == "机器人签到" or strCont == "获取金币" or strCont == "签到":
         signTime = int(time.time()) #秒级时间戳
-        nCoins = random.randint(30, 60)
+        nCoins = random.randint(300, 600)
 
+        nMyCoins = 0
+        try:
+            nMyCoins = elsGameData[nQQID]["coins"]
+        except:
+            elsGameData[nQQID] = {}
+            elsGameData[nQQID]["coins"] = 0
+            elsGameData[nQQID]["signTime"] = 0
+            nMyCoins = 0
 
         # print("nCoinsnCoins"+str(nCoins) + " signTime "+str(signTime))
         # print("elsGameDataelsGameData==>"+str(elsGameData))
         try:
             lastSignTime = elsGameData[nQQID]["signTime"]
-            if signTime - lastSignTime > 43200:
+            if signTime - lastSignTime > 7200:
                 elsGameData[nQQID]["coins"] += nCoins
                 elsGameData[nQQID]["signTime"] = signTime
             else:
-                action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n12小时才能签到一次哦")
-                return 1
+                if nMyCoins == 0:
+                    lastSignTime = 0
+                    nCoins = random.randint(1, 10)
+                    elsGameData[nQQID]["coins"] += nCoins
+                    elsGameData[nQQID]["signTime"] = signTime
+                else:
+                    action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n每2小时才能签到一次哦")
+                    return 1
         except:
             elsGameData[nQQID] = {}
             elsGameData[nQQID]["coins"]  = nCoins
             elsGameData[nQQID]["signTime"]  = signTime
         
-        action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n今日签到领取了"+str(nCoins)+"个金币, 剩余"+str(elsGameData[nQQID]["coins"])+"个金币, \n可以用来看买家秀,让机器人骂人,看二次元图 别再用光了")
+        if nMyCoins == 0:
+            action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n这么快就把钱花完了? 给你点补贴吧...\n签到领取了"+str(nCoins)+"个金币, 剩余"+str(elsGameData[nQQID]["coins"])+"个金币, ")
+        else:
+            action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n签到领取了"+str(nCoins)+"个金币, 剩余"+str(elsGameData[nQQID]["coins"])+"个金币, \n可以用来看买家秀,让机器人骂人,续写小说 别再用光了")
+
+
         SaveElsGameData()
-    if strCont == "查询金币":
+    if strCont == "查询金币" or strCont == "金币查询":
         nCoins = 0
         try:
             nCoins = elsGameData[nQQID]["coins"]
-        except:
+        except BaseException as error:
             elsGameData[nQQID] = {}
             elsGameData[nQQID]["coins"] = 0
             elsGameData[nQQID]["signTime"] = 0
             nCoins = 0
-        action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n你剩余"+str(nCoins)+"个金币, \n可以用来看买家秀,让机器人骂人,看二次元图 \n别再用光了")
+            print("errorerror====>"+str(error))
+        action.sendGroupText(ctx.FromGroupId, "用户:" + nQQID + "\n你剩余"+str(nCoins)+"个金币, \n可以用来看买家秀,让机器人骂人,续写小说 \n别再用光了")
+
+    if strCont == "本群清零" or strCont == "重新开服" or strCont == "清空金币":
+        userslist = action.getGroupMembers(ctx.FromGroupId)
+        for x in userslist:
+            uID = str(x["MemberUin"])
+            try:
+                elsGameData[uID]["coins"] = 0
+                elsGameData[uID]["steal"] = 0
+                elsGameData[uID]["signTime"] = 0
+            except:
+                a=1
+        SaveElsGameData()
+        action.sendGroupText(ctx.FromGroupId, "本群金币重置成功, 请签到领金币去吧")
+
+    if strCont == "本群排行":
+        userslist = action.getGroupMembers(ctx.FromGroupId)
+        aaaRRR = []
+        for x in userslist:
+            uID = str(x["MemberUin"])
+            try:
+                acino = elsGameData[uID]["coins"]
+                temAAA = {"nickNamme":x["NickName"], "memberUin":str(x["MemberUin"]), "coins":acino}
+                aaaRRR.append(temAAA)
+            except:
+                a=1
+
+        aaaRRR.sort(key=takecoinsEle, reverse=True)
+
+        nLoopNum = 0
+        strPPPPPPP = ""
+        for xxx in aaaRRR:
+            strPPPPPPP += "昵称:"+xxx["nickNamme"]+", 金币数:"+str(xxx["coins"])+"\n"
+            nLoopNum += 1
+            if nLoopNum >= 15:
+                break
+
+        action.sendGroupText(ctx.FromGroupId, strPPPPPPP)
+
+
 
     if strCont.startswith("赠送金币"):
         args = [i.strip() for i in strCont.split(" ") if i.strip()]
@@ -3196,6 +3711,8 @@ def EluosiGame(ctx: GroupMsg):
                 return 1
             if nMyCoins < nCoins:
                 action.sendGroupText(ctx.FromGroupId, "赠送错误!!! 自己就"+str(nMyCoins)+"个金币, 别想着送了")
+            elif nCoins <= 0:
+                action.sendGroupText(ctx.FromGroupId, "作弊扣1000000金币")
             else:
                 try:
                     elsGameData[strQQ]["coins"] += nCoins
@@ -3209,12 +3726,85 @@ def EluosiGame(ctx: GroupMsg):
                 action.sendGroupText(ctx.FromGroupId, "赠送成功!!!"+ nQQID +" 你还剩"
                     +str(elsGameData[nQQID]["coins"])+"金币\n对方剩余"+str(elsGameData[strQQ]["coins"])+"个金币")
 
+    if strCont.startswith("查询金币"):
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        if len(args) == 2:
+            nCoins = 0
+            strQQQQ = args[1]
+            try:
+                nCoins = elsGameData[strQQQQ]["coins"]
+            except BaseException as error:
+                elsGameData[strQQQQ] = {}
+                elsGameData[strQQQQ]["coins"] = 0
+                elsGameData[strQQQQ]["signTime"] = 0
+                nCoins = 0
+                print("errorerror====>"+str(error))
+            action.sendGroupText(ctx.FromGroupId, "用户:" + strQQQQ + "\n有剩余"+str(nCoins)+"个金币, 请好好评估再抢劫他")
 
+    if strCont.startswith("发红包"):
+        args = [i.strip() for i in strCont.split(" ") if i.strip()]
+        if len(args) != 2:
+            return 1
+        sendCoins = 0
+        try:
+            sendCoins = int(args[1])
+        except:
+            return 1
+        if sendCoins < 1000:
+            action.sendGroupText(ctx.FromGroupId, "红包数量不得低于1000", atUser=ctx.FromUserId)
+            return 1
 
-# r = redis.Redis(host='127.0.0.1', port=6379)
+        nMyCoins = 0
+        try:
+            nMyCoins = elsGameData[nQQID]["coins"]
+        except:
+            elsGameData[nQQID] = {}
+            elsGameData[nQQID]["coins"] = 0
+            elsGameData[nQQID]["signTime"] = 0
+            nMyCoins = 0
 
-def CheckCoins(strID: str, nCost: int):
+        if sendCoins > nMyCoins:
+            action.sendGroupText(ctx.FromGroupId, "金币不足, 你只有"+str(nMyCoins), atUser=ctx.FromUserId)
+            return 1
+        
+        aaaa = 0
+        qqqq = sendCoins
+        for i in range(10):
+            res11 = math.floor(random.random() * qqqq / 2)
+            qqqq = qqqq - res11
+            if i == 9:
+                res11 = sendCoins - aaaa
+            aaaa += res11
+            hbData.append(res11)
+
+        elsGameData[nQQID]["coins"] -= sendCoins
+        SaveElsGameData()
+        SaveHBData()
+        action.sendGroupText(ctx.FromGroupId, "你的红包发出了,已经分成10份,共"+str(sendCoins)+"个金币", atUser=ctx.FromUserId)
+
+    if strCont.startswith("抢红包") or strCont.startswith("领红包"):
+        if len(hbData) <= 0:
+            action.sendGroupText(ctx.FromGroupId, "红包领完了, 要抢就自己发", atUser=ctx.FromUserId)
+            return 1
+        curCC = hbData.pop(0)
+        if curCC <= 0:
+            curCC = 1
+        
+        try:
+            elsGameData[nQQID]["coins"] += curCC
+        except:
+            elsGameData[nQQID] = {}
+            elsGameData[nQQID]["coins"] = curCC
+            elsGameData[nQQID]["signTime"] = 0
+
+        SaveElsGameData()
+        SaveHBData()
+        action.sendGroupText(ctx.FromGroupId, "恭喜抢到了"+str(curCC)+"个金币, 剩余"+str(elsGameData[nQQID]["coins"])+"个金币", atUser=ctx.FromUserId)
+
+def CheckCoins(strID: str, nCost1: int, nGroupID: int):
     global elsGameData
+
+    nCost = nCost1*6
     
     playerData = {}
     try:
@@ -3227,6 +3817,7 @@ def CheckCoins(strID: str, nCost: int):
 
     playerCoins = playerData["coins"]
     if(nCost > playerCoins):
+        action.sendGroupText(nGroupID, "用户:"+strID+" 金币不够了, 这个功能"+str(nCost)+"金币一次")
         return False
     else:
         elsGameData[strID]["coins"] -= nCost
@@ -3237,3 +3828,4 @@ if __name__ == '__main__':
     # ---------------------------------------------------------------------------------
     print("qidong")
     bot.run()
+
