@@ -54,6 +54,8 @@ def txt2img(prompt: str,
             steps: int = 28, 
             sampler_index: str = "Euler a", 
             seed: int = -1,
+            wwwwww:int = 960,
+            hhhhhh:int = 512,
             ):
     
     payload = {
@@ -62,8 +64,8 @@ def txt2img(prompt: str,
         "steps": min(steps, 50),
         "sampler_index": sampler_index,
         "cfg_scale": 11,
-        "width": 960,
-        "height": 512,
+        "width": wwwwww,
+        "height": hhhhhh,
         "seed": seed
     }
     
@@ -122,9 +124,18 @@ async def group_message_listener(app: Ariadne, group: Group,  message: MessageCh
         strSsss = strCont.replace("生成图", "")
         strSsss = strSsss.replace("/ai text", "")
         strSsss = strSsss.replace("，", ",")
+        www = 960
+        hhh = 512
+        if "竖屏" in strCont:
+            www = 512
+            hhh = 960
+        strSsss = strSsss.replace("竖屏", "")
+        strSsss = strSsss.replace("横屏", "")
+        
         repl2 = MessageChain(At(event.sender.id), Plain("\n收到,生成图片中,可能一分钟后成功...."))
         await app.send_message(group, repl2)
-        img64 = txt2img(strSsss)
+
+        img64 = txt2img(strSsss, wwwwww=www, hhhhhh=hhh)
         if len(strSsss) > 30:
             strSsss = strSsss[0 : 30]+"....."
         strRepl = "\n你要求的\n'"+strSsss+"'\n生成好了"
