@@ -261,8 +261,9 @@ async def group_message_listener(app: Ariadne, group: Group,  message: MessageCh
             repl00 = MessageChain(Plain("\n你想要色色?要我喊管理过来吗?"))
             return app.send_message(group, repl00, quote = message)
         if dtTime < floatCDCD:
+            leftTime = floatCDCD-dtTime
             repl1 = MessageChain(Plain(
-                "\n" + str(floatCDCD)+" 秒CD一张图,等等再弄吧"+str(dtTime)))
+                "\n" + str(floatCDCD)+" 秒CD一张图,等等再弄吧,还剩"+str(leftTime)+"秒"))
             return app.send_message(group, repl1, quote = message)
         floatTxt2img = time.time()
         strSsss = strCont.replace("生成图 ", "")
@@ -373,21 +374,24 @@ async def group_message_listener(app: Ariadne, group: Group,  message: MessageCh
     if "动漫化" in strCont:
         imageArr = event.message_chain[Image]
         if len(imageArr) == 1:
-            nAAAAAAAA = time.time()
-            strUrlqq = imageArr[0].url
-            html = requests.get(strUrlqq)
-            strPathName = './anim/' + str(nAAAAAAAA) + '.png'
-            with open(strPathName, 'wb') as file:
-                file.write(html.content)
-            imgTemp = ImagePIL.open(strPathName)
-            strMod = "v1"
-            if "v2" in strCont:
-                strMod = "v2"
-            plImg = AnimFace(imgTemp, strMod)
-            image_data = image_to_base64(plImg)
-            strRepl = "好了, 默认v1模型, 可以发送'动漫化v2'使用另一个模型"
-            repl3 = MessageChain(Image(base64=image_data), Plain(strRepl))
-            return app.send_message(group, repl3, quote = message)
+            try:
+                nAAAAAAAA = time.time()
+                strUrlqq = imageArr[0].url
+                html = requests.get(strUrlqq)
+                strPathName = './anim/' + str(nAAAAAAAA) + '.png'
+                with open(strPathName, 'wb') as file:
+                    file.write(html.content)
+                imgTemp = ImagePIL.open(strPathName)
+                strMod = "v1"
+                if "v2" in strCont:
+                    strMod = "v2"
+                plImg = AnimFace(imgTemp, strMod)
+                image_data = image_to_base64(plImg)
+                strRepl = "好了, 默认v1模型, 可以发送'动漫化v2'使用另一个模型"
+                repl3 = MessageChain(Image(base64=image_data), Plain(strRepl))
+                return app.send_message(group, repl3, quote = message)
+            except:
+                return app.send_message(group, "出错了,换张图吧", quote = message)
 
 
 
