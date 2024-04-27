@@ -40,7 +40,8 @@ curFileDir = Path(__file__).absolute().parent  # 当前文件路径
 basetag = "((best quality)), ((masterpiece)),((highres)), original, extremely detailed 8K wallpaper,"
 
 # 基础排除tag
-lowQuality = "((bra)),((belt)),((dress)),((pants)),((cloth)),cape,scarf,((bikini)),futa,multiple breasts, (mutated hands and fingers:1.5 ), (long body :1.3),nsfw,logo,text,badhandv4,EasyNegative,ng_deepnegative_v1_75t,rev2-badprompt,verybadimagenegative_v1.3,negative_hand-neg,mutated hands and fingers,poorly drawn face,extra limb,missing limb,disconnected limbs,malformed hands,ugly,"
+lowQuality = "((bra)),((belt)),((dress)),((pants)),((cloth)),cape,scarf,((bikini)),futa,multiple breasts,multiple nipples, (mutated hands and fingers:1.5 ), (long body :1.3),nsfw,logo,text,badhandv4,EasyNegative,ng_deepnegative_v1_75t,rev2-badprompt,verybadimagenegative_v1.3,negative_hand-neg,mutated hands and fingers,poorly drawn face,extra limb,missing limb,disconnected limbs,malformed hands,ugly, more than 2 nipples, missing nipples, different nipples, fused nipples, bad nipples, poorly drawn nipples, black nipples, colorful nipples, gross proportions. short arm, (((missing arms))), missing thighs, missing calf, fused breasts, bad breasts, huge breasts, poorly drawn breasts, extra breasts, liquid breasts, heavy breasts, missing breasts"
+lowQuality22 = "nsfw,nude,naked,NSFW,nipple,pussy,futa,multiple breasts, (mutated hands and fingers:1.5 ), (long body :1.3),nsfw,logo,text,badhandv4,EasyNegative,ng_deepnegative_v1_75t,rev2-badprompt,verybadimagenegative_v1.3,negative_hand-neg,mutated hands and fingers,poorly drawn face,extra limb,missing limb,disconnected limbs,malformed hands,ugly, more than 2 nipples, missing nipples, different nipples, fused nipples, bad nipples, poorly drawn nipples, black nipples, colorful nipples, gross proportions. short arm, (((missing arms))), missing thighs, missing calf, fused breasts, bad breasts, huge breasts, poorly drawn breasts, extra breasts, liquid breasts, heavy breasts, missing breasts"
 
 # lowQuality = "EasyNegative, muscular, (suntan:2), (sleeves:2), (tattoo:2), (sunglasses:2), (inverted nipples), (mutated:2), (worst quality:2), (low quality:2), (normal quality:2), lowres, blurry, ((nasolabial folds):1.2), 3d, anime, cartoon, cg, comic, drawing, bad detailed background, cropped, grayscale, jpeg artifacts, monochrome, non-linear background, out of frame, paintings, poorly drawn, semi-realistic, sepia, sketches, unclear architectural outline, asymmetric eyes, bad anatomy, cloned, crooked teeth, deformed, dehydrated, disfigured, double nipples, duplicate, extra arms, extra fingers, extra legs, extra limbs, long fingers, long neck, malformed limbs, missing arms, missing legs, missing teeth, more than five fingers on one hand:1.5, more than two arm per body:1.5, more than two leg per body:1.5, mutated, mutation, mutilated, odd eyes, ugly, (artist name:2), (logo:2), (text:2), (watermark:2), acnes, age spot, dark spots, fat, fused, giantess, glans, mole, obesity, skin blemishes, skin spots, animal ears, elf-ears, earrings, childish, morbid"
 
@@ -173,6 +174,119 @@ def img2imgAndMask(imgBase64, prompt, wwwww, height11, image_data, mask_blur, nC
     payload = {
         "prompt": basetag + "," + prompt+", <lora:meinv123:0.7>,<lora:add_detail:0.7>, <lora:Grool LORA:0.6>, grool",
         "negative_prompt": lowQuality,
+        "sampler_name": "DPM++ 2M SDE Karras",
+        "sampler_index": "DPM++ 2M SDE Karras",
+        "resize_mode": 2,
+        "steps": 32,
+        "cfg_scale": 7,
+        "batch": 1,
+        "width": wwwww,
+        "height": height11,
+        "init_images": [imgBase64],
+        "mask":  image_data,
+        "mask_blur": mask_blur,
+        "mask_blur_x": mask_blur,
+        "mask_blur_y": mask_blur,
+        "seed": -1,  # 3690476257
+        # 肤色问题 https://www.reddit.com/r/StableDiffusion/comments/1375wlb/inpainting_how_to_match_skin_tones/
+        "denoising_strength": 1,
+        "inpaint_full_res": True,
+        "inpaint_full_res_padding": 64,
+        "inpainting_fill": 1,
+        "inpainting_mask_invert": 0,
+        # "initial_noise_multiplier": 0.4,
+        # "s_noise": 0.4,
+        "alwayson_scripts": {
+            "ControlNet": {
+                "args": [
+                    {
+                        "input_image": imgBase64,
+                        "model": "control_canny [9d312881]",
+                        "module": "canny",
+                        "weight": 1.2,
+                        "lowvram": False,
+                        "processor_res": 640,
+                        "threshold_a": 150,
+                        "threshold_b": 250,
+                        "guidance": 1,
+                        "guidance_start": 0,
+                        "guidance_end": 1,
+                        "pixel_perfect": True,
+                        "control_mode": "Balanced",
+                    },
+                    {
+                        "enabled": False,
+                    },
+                    {
+                        "enabled": False,
+                    },
+                    {
+                        "enabled": False,
+                    },
+                ]
+            }
+        }
+    }
+    if nCCType == 2:
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["model"] = "control_v11p_sd15_openpose [cab727d4]"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["module"] = "openpose_full"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["weight"] = 1
+    elif nCCType == 3:
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["model"] = "control_v11f1p_sd15_depth [cfd03158]"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["module"] = "depth_midas"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["lowvram"] = True
+
+    elif nCCType == 4:
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["model"] = "control_v11p_sd15_softedge [a8575a2a]"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["module"] = "softedge_hed"
+
+    elif nCCType == 5:
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["model"] = "control_v11p_sd15_scribble [d4ba51ff]"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["module"] = "scribble_hed"
+
+    elif nCCType == 6:
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["model"] = "control_openpose [b46e25f5]"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["module"] = "openpose"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["weight"] = 1
+    elif nCCType == 7:
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["model"] = "control_v11p_sd15_seg [e1f51eb9]"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["module"] = "seg_ofcoco"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["weight"] = 1
+
+    elif nCCType == 8:
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["model"] = "control_v11p_sd15_inpaint [ebff9138]"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["module"] = "inpaint_global_harmonious"
+        payload["alwayson_scripts"]["ControlNet"]["args"][0]["weight"] = 1
+
+    # print("payload==>", payload)
+
+    resp = requests.post(
+        # url="http://region-8.seetacloud.com:35202/sdapi/v1/img2img", json=payload)
+        url="http://127.0.0.1:7860/sdapi/v1/img2img", json=payload)
+    # print("resp=       ========== =>"+str(resp))
+    resp = resp.json()
+    processed = resp["images"][0]
+
+    strPPP: str = prompt
+    if (len(prompt) > 30):
+        strPPP = prompt[0: 30]
+
+    strPicName = strPPP + str(time.time()) + \
+        str(random.randint(10000000, 111111111111111111))
+    strName = sanitize_filepath(strPicName)
+    # I assume you have a way of picking unique filenames
+    filename = "./p2p/" + strName + '.png'
+    imgdata = base64.b64decode(processed)
+    with open(filename, 'wb') as f:
+        f.write(imgdata)
+
+    return processed, filename
+
+
+def img2imgAndMask22(imgBase64, prompt, wwwww, height11, image_data, mask_blur, nCCType=2):
+    payload = {
+        "prompt": basetag + "," + prompt+"",
+        "negative_prompt": lowQuality22,
         "sampler_name": "DPM++ 2M SDE Karras",
         "sampler_index": "DPM++ 2M SDE Karras",
         "resize_mode": 2,
@@ -596,8 +710,8 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
 
     if image_data:
         useCustom = False
-        strAlllll = "NSFW,nsfw,(naked 1.5),(nude girl 1.5),(no cloth 2),breasts,pussy,pink nipples,"
-        strAlllll2222 = "(naked 1.2),(nude 1.2),((topless)),"
+        strAlllll = "NSFW,nsfw,(naked 1),(nude girl 1),(no cloth 1),breasts,pussy,pink nipples,"
+        strAlllll2222 = "((topless)),"
 
         nCCtype = 2
         if strPromoto and len(strPromoto) >= 1:
@@ -673,6 +787,160 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
                         www = 720
                         hhh = 1024
                     img64, resultPath22 = img2imgAndMask(
+                        strBase64Org, strAlllll, www, hhh, image_data, nMaskB, nCCtype)
+                    if not bUseCloth:
+                        res1111 = ImagePIL.open(resultPath22)
+                        noBGMan = ShiBiePeople(res1111)
+                        strBGBG = GetNoManBG(image_in_path)
+                        # print("image_in_path=>", image_in_path, strBGBG)
+                        new_image = ImagePIL.open(strBGBG)
+                        no_bg_image = noBGMan
+                        x, y = no_bg_image.size
+                        new_image.paste(no_bg_image, box=(
+                            0, 0, x, y), mask=no_bg_image)
+                        new_image.save("./p2p/IIIIII.png")
+
+                        return new_image, "./p2p/IIIIII.png"
+                    else:
+                        return img64, resultPath22
+            except:
+                return 0, 0
+
+    return 0, 0
+
+
+def NudeOnePerson22(image_in_path: str, strPromoto: str):
+    imgININ = ImagePIL.open(image_in_path)
+    strBase64Org = "data:image/png;base64," + \
+        image_to_base64(imgININ)
+    # strBase64Org = "data:image/png;base64," + downloaded_file
+    bUseFace = False
+    bUseCloth = True
+    bShowMask = False
+    bMaskPureColor = False
+    if strPromoto and ("识别面部" in strPromoto):
+        strPromoto = strPromoto.replace("识别面部 ", "")
+        strPromoto = strPromoto.replace("识别面部", "")
+        bUseFace = True
+        bUseCloth = False
+    if strPromoto and ("识别衣服" in strPromoto):
+        strPromoto = strPromoto.replace("识别衣服 ", "")
+        strPromoto = strPromoto.replace("识别衣服", "")
+        bUseCloth = True
+    if strPromoto and ("旧算法" in strPromoto):
+        strPromoto = strPromoto.replace("旧算法 ", "")
+        strPromoto = strPromoto.replace("旧算法", "")
+        bUseCloth = False
+    if strPromoto and ("显示遮罩" in strPromoto):
+        strPromoto = strPromoto.replace("显示遮罩 ", "")
+        strPromoto = strPromoto.replace("显示遮罩", "")
+        bShowMask = True
+    if strPromoto and ("纯色" in strPromoto):
+        strPromoto = strPromoto.replace("纯色 ", "")
+        strPromoto = strPromoto.replace("纯色", "")
+        bMaskPureColor = True
+
+    image_data = None
+    strOutName = ""
+    bUseDick = False
+    bDelectBG = False
+    bTank = False
+    nMaskB = 1
+    outImageFSMask = None
+    if not bUseCloth:
+        try:
+            if bDelectBG:
+                strOutName, image_data, strName2 = ShiBieHuman(
+                    strBase64Org, bUseFace, bDelectBG, imgININ)
+            else:
+                strOutName, image_data, strName2 = ShiBieHuman(
+                    strBase64Org, bUseFace, bUseDick, imgININ)
+        except:
+            strOutName, image_data, outImageFSMask = ShiBieClothNew(
+                imgININ, image_in_path)
+            nMaskB = 8
+    else:
+        strOutName, image_data, outImageFSMask = ShiBieClothNew(
+            imgININ, image_in_path)
+        nMaskB = 8
+
+    if image_data:
+        useCustom = False
+        strAlllll = "bikini, (bikini 1.5), sexy, underwear, bra,"
+        strAlllll2222 = ""
+
+        nCCtype = 2
+        if strPromoto and len(strPromoto) >= 1:
+            try:
+                nMaskB = int(strPromoto)
+                if (nMaskB <= 0):
+                    nMaskB = 0
+                if nMaskB > 64:
+                    nMaskB = 64
+            except BaseException:
+
+                if "o" in strPromoto:
+                    nCCtype = 2
+                    strPromoto = strPromoto.replace("o", "")
+                if "d" in strPromoto:
+                    nCCtype = 3
+                    strPromoto = strPromoto.replace("d", "")
+                if "c" in strPromoto:
+                    nCCtype = 1
+                    strPromoto = strPromoto.replace("c", "")
+                if "h" in strPromoto:
+                    nCCtype = 4
+                    strPromoto = strPromoto.replace("h", "")
+                if "s" in strPromoto:
+                    nCCtype = 5
+                    strPromoto = strPromoto.replace("s", "")
+                if "seg" in strPromoto:
+                    nCCtype = 7
+                    strPromoto = strPromoto.replace("seg", "")
+                if "o1" in strPromoto:
+                    nCCtype = 6
+                    strPromoto = strPromoto.replace("o1", "")
+                if "i" in strPromoto:
+                    nCCtype = 8
+                    strPromoto = strPromoto.replace("i", "")
+                if len(strPromoto) > 1:
+                    if checkStrisCN(strPromoto):
+                        strPromoto = FanyiCNToEn(strPromoto)
+                    strAlllll += strPromoto
+                    useCustom = True
+                else:
+                    strAlllll = strAlllll + strAlllll2222
+            print("额外关键词===>", strPromoto)
+        else:
+            strAlllll = strAlllll + strAlllll2222
+
+        bCan = True
+        if bCan:
+            resultPath = ""
+            try:
+                if True:
+                    resultPath22 = ""
+                    urlFFFFF = ""
+
+                    strBBBB = strBase64Org.replace(
+                        "data:image/png;base64,", "")
+                    immm = base64_to_pillow(strBBBB)
+
+                    if outImageFSMask and bMaskPureColor:
+                        x, y = outImageFSMask.size
+                        immm.paste(outImageFSMask, box=(
+                            0, 0, x, y), mask=outImageFSMask)
+                        immm.save("tempMask.png")
+                        strBase64Org = "data:image/png;base64," + \
+                            image_to_base64(immm)
+
+                    imgTempSize = immm.size
+                    www = 1024
+                    hhh = 720
+                    if imgTempSize[0] < imgTempSize[1]:
+                        www = 720
+                        hhh = 1024
+                    img64, resultPath22 = img2imgAndMask22(
                         strBase64Org, strAlllll, www, hhh, image_data, nMaskB, nCCtype)
                     if not bUseCloth:
                         res1111 = ImagePIL.open(resultPath22)

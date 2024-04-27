@@ -14,7 +14,7 @@ import math
 import json
 import os
 from threading import Timer
-from deepN import NudeOnePerson
+from deepN import NudeOnePerson, NudeOnePerson22
 import threading
 import subprocess
 import asyncio
@@ -26,6 +26,9 @@ import os
 
 from xiuxian import PlayerInfo, XiuXianGame
 
+from pathlib import Path
+curFileDir = Path(__file__).absolute().parent  # 当前文件路径
+
 
 def wav_to_amr(wav_file, amr_file):
     # 使用 FFmpeg 将 WAV 文件转换为 AMR 格式
@@ -36,6 +39,31 @@ def wav_to_amr(wav_file, amr_file):
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 # 解决请求https报错的问题
 ssl._create_default_https_context = ssl._create_unverified_context
+
+
+BlackBotArr = []
+
+
+def checkBlackBot(uid):
+    global BlackBotArr
+    uid = str(uid)
+    if uid in BlackBotArr:
+        return True
+    return False
+
+
+with open(curFileDir / "black.json", "r", encoding="utf-8") as f:
+    plpCtx = json.load(f)
+    dataArr = plpCtx['black']
+    if (dataArr and len(dataArr) > 0):
+        BlackBotArr = dataArr
+
+
+def SaveBalckData():
+    global BlackBotArr
+    with open(curFileDir / "black.json", 'w', encoding="utf-8")as f:
+        data = {"black": BlackBotArr}
+        json.dump(data, f)
 
 
 bOpenXXGame = True
@@ -302,92 +330,46 @@ async def GetAV():
         if CTXG_P.bot_qq == CTXG_P.from_user:
             return 1
 
-        if str(CTXG_P.from_user) == str(nMasterQQ):  # or CheckSafeQun(strGroupID):
+        # or CheckSafeQun(strGroupID):
+        if str(CTXG_P.from_user) == str(nMasterQQ):
             bMasterUSer = True
+
+    if checkBlackBot(strUID):
+        return 1
+
+    if bMasterUSer and "封禁" in strCont:
+        strUID = strCont.replace("封禁 ", "")
+        strUID = strUID.replace("封禁", "")
+        BlackBotArr.append(strUID)
+        SaveBalckData()
+        await S.text(text=strUID+"已屏蔽")
 
     if CTXG_P and CTXG_P.text.startswith("阿梓"):
         strFH = CTXG_P.text.replace("阿梓", "", 1)
-        strR = GetAIVoice(strFH)
-        if strR == "0":
-            await S.text("太长了受不了,当前长度:"+str(len(strFH))+",最多支持:"+str(nMaxLength))
-        if strR != "0":
-            strSilk = "output.amr"
-            wav_to_amr(strR, strSilk)
-            with open(strSilk, 'rb') as ffff:
-                dataffff = ffff.read()
-                encodestr = base64.b64encode(
-                    dataffff).decode()  # 得到 byte 编码的数据
-                if ctx.g:
-                    await action.sendGroupVoice(group=ctx.g.from_group, base64=encodestr)
-                elif ctx.friend_msg:
-                    await action.sendFriendVoice(user=ctx.friend_msg.from_user, base64=encodestr)
+        threading.Thread(target=run_voice_one_person_thread,
+                         args=(strFH, 9880, ctx.g.from_group)).start()
+
     if CTXG_P and CTXG_P.text.startswith("雪莲"):
         strFH = CTXG_P.text.replace("雪莲", "", 1)
-        strR = GetAIVoice(strFH, 9881)
-        if strR == "0":
-            await S.text("太长了受不了,当前长度:"+str(len(strFH))+",最多支持:"+str(nMaxLength))
-        if strR != "0":
-            strSilk = "output.amr"
-            wav_to_amr(strR, strSilk)
-            with open(strSilk, 'rb') as ffff:
-                dataffff = ffff.read()
-                encodestr = base64.b64encode(
-                    dataffff).decode()  # 得到 byte 编码的数据
-                if ctx.g:
-                    await action.sendGroupVoice(group=ctx.g.from_group, base64=encodestr)
-                elif ctx.friend_msg:
-                    await action.sendFriendVoice(user=ctx.friend_msg.from_user, base64=encodestr)
+        threading.Thread(target=run_voice_one_person_thread,
+                         args=(strFH, 9881, ctx.g.from_group)).start()
+
     if CTXG_P and CTXG_P.text.startswith("步非烟",):
         strFH = CTXG_P.text.replace("步非烟", "", 1)
-        strR = GetAIVoice(strFH, 9882)
-        if strR == "0":
-            await S.text("太长了受不了,当前长度:"+str(len(strFH))+",最多支持:"+str(nMaxLength))
-        if strR != "0":
-            strSilk = "output.amr"
-            wav_to_amr(strR, strSilk)
-            with open(strSilk, 'rb') as ffff:
-                dataffff = ffff.read()
-                encodestr = base64.b64encode(
-                    dataffff).decode()  # 得到 byte 编码的数据
-                if ctx.g:
-                    await action.sendGroupVoice(group=ctx.g.from_group, base64=encodestr)
-                elif ctx.friend_msg:
-                    await action.sendFriendVoice(user=ctx.friend_msg.from_user, base64=encodestr)
+        threading.Thread(target=run_voice_one_person_thread,
+                         args=(strFH, 9882, ctx.g.from_group)).start()
+
     if CTXG_P and CTXG_P.text.startswith("塔菲"):
         return 1
         strFH = CTXG_P.text.replace("塔菲", "", 1)
-        strR = GetAIVoice(strFH, 9883)
-        if strR == "0":
-            await S.text("太长了受不了,当前长度:"+str(len(strFH))+",最多支持:"+str(nMaxLength))
-        if strR != "0":
-            strSilk = "output.amr"
-            wav_to_amr(strR, strSilk)
-            with open(strSilk, 'rb') as ffff:
-                dataffff = ffff.read()
-                encodestr = base64.b64encode(
-                    dataffff).decode()  # 得到 byte 编码的数据
-                if ctx.g:
-                    await action.sendGroupVoice(group=ctx.g.from_group, base64=encodestr)
-                elif ctx.friend_msg:
-                    await action.sendFriendVoice(user=ctx.friend_msg.from_user, base64=encodestr)
+        threading.Thread(target=run_voice_one_person_thread,
+                         args=(strFH, 9883, ctx.g.from_group)).start()
     if CTXG_P and (CTXG_P.text.startswith("otto") or CTXG_P.text.startswith("电棍")):
         return 1
         strFH = CTXG_P.text.replace("otto", "", 1)
         strFH = strFH.replace("电棍", "", 1)
-        strR = GetAIVoice(strFH, 9884)
-        if strR == "0":
-            await S.text("太长了受不了,当前长度:"+str(len(strFH))+",最多支持:"+str(nMaxLength))
-        if strR != "0":
-            strSilk = "output.amr"
-            wav_to_amr(strR, strSilk)
-            with open(strSilk, 'rb') as ffff:
-                dataffff = ffff.read()
-                encodestr = base64.b64encode(
-                    dataffff).decode()  # 得到 byte 编码的数据
-                if ctx.g:
-                    await action.sendGroupVoice(group=ctx.g.from_group, base64=encodestr)
-                elif ctx.friend_msg:
-                    await action.sendFriendVoice(user=ctx.friend_msg.from_user, base64=encodestr)
+        threading.Thread(target=run_voice_one_person_thread,
+                         args=(strFH, 9884, ctx.g.from_group)).start()
 
     if CTXG_P and CTXG_P.text.startswith("换脸"):
         if CTXG_P.images and len(CTXG_P.images) == 2:
@@ -409,21 +391,57 @@ async def GetAV():
 
                 await S.image(data=oooName, text=wqwwqeq)
 
-    if ctx.g and CTXG_P and CTXG_P.text.startswith("脱衣") :
+    if ctx.g and CTXG_P and CTXG_P.text.startswith("脱衣"):
         if not bMasterUSer:
             return S.text("你没权限使用", at=True)
         strTESTURL = strCont.replace("脱衣 ", "")
         strTESTURL = strTESTURL.replace("脱衣", "")
+        image_in_path = ""
         if len(strImageUrl) > 0:
             await S.text("开始，稍等。。。", at=True)
-            image_in_path = SavePIC(strImageUrl, "facein", "nameTemp")
+            # image_in_path = SavePIC(strImageUrl, "facein", "nameTemp")
+            for imageData in ctx.g.images:
+                strIMGURL = imageData.Url
+                image_in_pathloop = SavePIC(strIMGURL, "facein", "nameTemp")
+                if len(image_in_pathloop) > 0:
+                    threading.Thread(target=run_nude_one_person_thread, args=(
+                        image_in_pathloop, strCont, ctx.g.from_group)).start()
         elif "http" in strTESTURL:
             await S.text("开始，稍等。。。", at=True)
             image_in_path = SavePIC(strTESTURL, "facein", "nameTemp")
             strCont = ""
-            
-        threading.Thread(target=run_nude_one_person_thread, args=(
-            image_in_path, strCont, ctx.g.from_group)).start()
+            if len(image_in_path) > 0:
+                threading.Thread(target=run_nude_one_person_thread, args=(
+                    image_in_path, strCont, ctx.g.from_group)).start()
+            else:
+                await S.text("合成失败,图片有问题", at=True)
+
+    if ctx.g and CTXG_P and (CTXG_P.text.startswith("比基尼") or CTXG_P.text.startswith("泳衣")):
+        strTESTURL = strCont.replace("比基尼 ", "")
+        strTESTURL = strTESTURL.replace("比基尼", "")
+        strTESTURL = strTESTURL.replace("泳衣", "")
+        image_in_path = ""
+
+        print("botbotbotbotbotbot", ctx.g.images)
+        if len(strImageUrl) > 0:
+            await S.text("开始，稍等。。。", at=True)
+            # image_in_path = SavePIC(strImageUrl, "facein", "nameTemp")
+            for imageData in ctx.g.images:
+                strIMGURL = imageData.Url
+                image_in_pathloop = SavePIC(strIMGURL, "facein", "nameTemp")
+                if len(image_in_pathloop) > 0:
+                    threading.Thread(target=run_nude_one_person_thread22, args=(
+                        image_in_pathloop, strCont, ctx.g.from_group, ctx.g.from_user)).start()
+
+        elif "http" in strTESTURL:
+            await S.text("开始，稍等。。。", at=True)
+            image_in_path = SavePIC(strTESTURL, "facein", "nameTemp")
+            strCont = ""
+            if len(image_in_path) > 0:
+                threading.Thread(target=run_nude_one_person_thread22, args=(
+                    image_in_path, strCont, ctx.g.from_group, ctx.g.from_user)).start()
+            else:
+                await S.text("合成比基尼失败,图片有问题", at=True)
 
     if CTXG_P and CTXG_P.text.startswith("番号"):
         strFH = CTXG_P.text.replace("番号 ", "")
@@ -442,17 +460,19 @@ async def GetAV():
             await S.text(strAllUrl)
             await S.image(strPicPath)
     elif strCont.startswith("搜图"):
+        # print("sssssssssssssssssssssssssssssssstttttttttttttttttttttttttttttttt", ctx.g)
         strTESTURL = strCont.replace("搜图 ", "")
         strTESTURL = strTESTURL.replace("搜图", "")
         if len(strImageUrl) > 0:
             await S.text("开始以图搜图")
             strPicPath = SavePIC(strImageUrl, "soutu", "nameTemp")
             strCOn11 = await test_sync(strPicPath)
+            await S.image(data="baidu.png", text="找到了:" + strCOn11)
         elif "http" in strTESTURL:
             await S.text("开始以图搜图")
             strPicPath = SavePIC(strTESTURL, "soutu", "nameTemp")
             strCOn11 = await test_sync(strPicPath)
-        await S.image(data="baidu.png", text="找到了:" + strCOn11)
+            await S.image(data="baidu.png", text="找到了:" + strCOn11)
 
     if CTXG_P and "开启修仙功能" in strCont and bMasterUSer:
         bOpenXXGame = True
@@ -500,6 +520,7 @@ async def GetAV():
         if "开始双修" in strCont or "开始双休" in strCont:
             strCCCC = xxGame.SHuangXiuWithWife(strUID, strSendName)
             await S.text("\n"+strCCCC, at=True)
+
         if "抛弃道侣" in strCont:
             strCCCC = xxGame.XXGiveUpWife(strUID, strSendName)
             await S.text("\n"+strCCCC, at=True)
@@ -569,6 +590,41 @@ async def run_nude_one_person(image_path, content, from_group):
         await action.sendGroupPic(group=from_group, text="做好了",  base64=img64)
     else:
         await action.sendGroupText(group=from_group, text="失败了")
+
+
+def run_nude_one_person_thread22(image_path, content, from_group, nUID):
+    asyncio.run(run_nude_one_person22(image_path, content, from_group, nUID))
+
+
+async def run_nude_one_person22(image_path, content, from_group, nUID):
+    try:
+        img64, resultPath22 = NudeOnePerson22(image_path, content)
+    except:
+        resultPath22 = 0
+    if resultPath22 != 0:
+        print("成功: "+str(resultPath22))
+        await action.sendGroupPic(group=from_group, text="做好了",  base64=img64, atUser=nUID)
+    else:
+        await action.sendGroupText(group=from_group, text="失败了")
+
+
+def run_voice_one_person_thread(strFH, portt, from_group):
+    asyncio.run(run_voice_one_person(strFH, portt, from_group))
+
+
+async def run_voice_one_person(strFH, portt, from_group):
+    strR = GetAIVoice(strFH, portt)
+    if strR == "0":
+        await action.sendGroupText(group=from_group, text="太长了受不了,当前长度:"+str(len(strFH))+",最多支持:"+str(nMaxLength))
+    if strR != "0":
+        strSilk = "output.amr"
+        wav_to_amr(strR, strSilk)
+        with open(strSilk, 'rb') as ffff:
+            dataffff = ffff.read()
+            encodestr = base64.b64encode(
+                dataffff).decode()  # 得到 byte 编码的数据
+
+        await action.sendGroupVoice(group=from_group, base64=encodestr)
 
 
 def del_file(path):
