@@ -5,14 +5,8 @@ from transformers import pipeline
 
 from hashlib import md5
 import lama_cleaner
-import os
-import datetime
 from pathlib import Path
-import telebot
-from telebot import types, util
 
-from PIL import ImageEnhance
-from typing import Tuple
 
 from pathvalidate import sanitize_filepath
 from io import BytesIO
@@ -23,15 +17,11 @@ import numpy as np
 from PIL import ImageDraw, ImageFilter, ImageOps, ImageChops
 from PIL import Image as ImagePIL
 import base64
-from telebot import apihelper
-from json import JSONDecoder
 import cv2
 from rembg import remove
 from rembg.session_factory import new_session
 import numpy as np
 import random
-from threading import Timer
-import os
 
 curFileDir = Path(__file__).absolute().parent  # 当前文件路径
 
@@ -92,12 +82,16 @@ def DrawRect(img: ImagePIL, face_rectangleArr, landmarkArr, bUseFace, bUseDick):
             draw.ellipse([(trueLeft, trueTop),
                           (left+width, top+height)], fill="black")
     else:
+        # for landmark in landmarkArr:
+        #     pointArr = []
+        #     # print("landmark", landmark)
+        #     for iii in landmark:
+        #         pointArr.append([landmark[iii]["x"], landmark[iii]["y"]])
         for landmark in landmarkArr:
             pointArr = []
             # print("landmark", landmark)
-            for iii in landmark:
-                pointArr.append([landmark[iii]["x"], landmark[iii]["y"]])
-
+            for n in range(0, 68):
+                pointArr.append([landmark.part(n).x, landmark.part(n).y])
             hull = cv2.convexHull(np.array(pointArr))
             hhhh11 = hull.tolist()
             showPointArr = []
@@ -130,33 +124,63 @@ def ShiBiePeople(input) -> ImagePIL:
     return mask
 
 
+# 加载Dlib的人脸检测器和关键点检测器
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor(
+    "shape_predictor_68_face_landmarks.dat")  # 68点模型
+
+
 def ShiBieHuman(strBase, bUseFace=False, bUseDick=False, imgININ=None):
-    http_urlface = "https://api-cn.faceplusplus.com/facepp/v3/detect"
-    # key = "X5CYnsaJJCgMJXMPo9JGyHWfsqWx80gr"
-    # secret = "K1zHwlcl1RalyoLOH3vWLsouLDjPcl69"
-    key = "boI1KjcVhbhYdefReMRTnTpWilhF0LrH"  # 10000次正式的
-    secret = "lND9EZLv3G5vZrtRVdUi26V7JgIj_llf"
+    # http_urlface = "https://api-cn.faceplusplus.com/facepp/v3/detect"
+    # # key = "X5CYnsaJJCgMJXMPo9JGyHWfsqWx80gr"
+    # # secret = "K1zHwlcl1RalyoLOH3vWLsouLDjPcl69"
+    # key = "boI1KjcVhbhYdefReMRTnTpWilhF0LrH"  # 10000次正式的
+    # secret = "lND9EZLv3G5vZrtRVdUi26V7JgIj_llf"
+    # data222 = {
+    #     "api_key": key,
+    #     "api_secret": secret,
+    #     "image_base64": strBase,
+    #     'return_landmark': 2  # 2检测。返回 106 个人脸关键点。1检测。返回 83 个人脸关键点。0不检测
+    # }
+    # respface = requests.post(http_urlface, data=data222)
+    # try:
+    #     respfaceJSON = JSONDecoder().decode(respface.text)
+    # except:
+    #     print("ShiBieHuman======>", respface.text)
+    #     return "MAX", "MAX", "MAX"
 
-    data222 = {
-        "api_key": key,
-        "api_secret": secret,
-        "image_base64": strBase,
-        'return_landmark': 2  # 2检测。返回 106 个人脸关键点。1检测。返回 83 个人脸关键点。0不检测
-    }
+    image_data = base64.b64decode(strBase.split(',')[1])
+    image = np.array(ImagePIL.open(BytesIO(image_data)))
+    # 将图像转换为灰度
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # 使用人脸检测器检测图像中的人脸
+    faces = detector(gray)
 
-    respface = requests.post(http_urlface, data=data222)
-    respfaceJSON = JSONDecoder().decode(respface.text)
+    face_rectangleArr = []
+    landmarkArr = []
 
-    if respfaceJSON['faces']:
-        face_rectangleArr = []
-        landmarkArr = []
-        nFacesNum = len(respfaceJSON['faces'])
-        for i in range(nFacesNum):
-            face_rectangle = respfaceJSON['faces'][i]['face_rectangle']
-            landmark = respfaceJSON['faces'][i]['landmark']
-            # print("respface['faces'][i]======>", respface['faces'][i])
+    # 对每张检测到的人脸进行操作
+    if faces:
+        for face in faces:
+            # 获取关键点
+            landmarks = predictor(gray, face)
+            landmarkArr.append(landmarks)
+            # 绘制人脸矩形框
+            face_rectangle = {
+                "left": face.left(),
+                "top": face.top(),
+                "width": face.width(),
+                "height": face.height()
+            }
             face_rectangleArr.append(face_rectangle)
-            landmarkArr.append(landmark)
+
+    # if respfaceJSON['faces']:
+    #     nFacesNum = len(respfaceJSON['faces'])
+    #     for i in range(nFacesNum):
+    #         face_rectangle = respfaceJSON['faces'][i]['face_rectangle']
+    #         landmark = respfaceJSON['faces'][i]['landmark']
+    #         face_rectangleArr.append(face_rectangle)
+    #         landmarkArr.append(landmark)
 
         strBBBBjjj = ShiBieHUNUN(imgININ)
         if strBBBBjjj:
@@ -172,12 +196,12 @@ def ShiBieHuman(strBase, bUseFace=False, bUseDick=False, imgININ=None):
 
 def img2imgAndMask(imgBase64, prompt, wwwww, height11, image_data, mask_blur, nCCType=2):
     payload = {
-        "prompt": basetag + "," + prompt+", <lora:meinv123:0.7>,<lora:add_detail:0.7>, <lora:Grool LORA:0.6>, grool",
+        "prompt": basetag + "," + prompt+",<lora:meinv123:0.3>,<lora:add_detail:0.4>,<lora:Grool:0.6>,Pussy grool",
         "negative_prompt": lowQuality,
         "sampler_name": "DPM++ 2M SDE Karras",
         "sampler_index": "DPM++ 2M SDE Karras",
         "resize_mode": 2,
-        "steps": 32,
+        "steps": 26,
         "cfg_scale": 7,
         "batch": 1,
         "width": wwwww,
@@ -290,7 +314,7 @@ def img2imgAndMask22(imgBase64, prompt, wwwww, height11, image_data, mask_blur, 
         "sampler_name": "DPM++ 2M SDE Karras",
         "sampler_index": "DPM++ 2M SDE Karras",
         "resize_mode": 2,
-        "steps": 32,
+        "steps": 26,
         "cfg_scale": 7,
         "batch": 1,
         "width": wwwww,
@@ -699,7 +723,12 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
             else:
                 strOutName, image_data, strName2 = ShiBieHuman(
                     strBase64Org, bUseFace, bUseDick, imgININ)
-        except:
+        except BaseException as eee:
+            print("识别面部错误!!!!!!!!!!!!====>", eee)
+            strOutName, image_data, outImageFSMask = ShiBieClothNew(
+                imgININ, image_in_path)
+            nMaskB = 8
+        if image_data == "MAX":
             strOutName, image_data, outImageFSMask = ShiBieClothNew(
                 imgININ, image_in_path)
             nMaskB = 8
@@ -711,7 +740,7 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
     if image_data:
         useCustom = False
         strAlllll = "NSFW,nsfw,(naked 1),(nude girl 1),(no cloth 1),breasts,pussy,pink nipples,"
-        strAlllll2222 = "((topless)),"
+        strAlllll2222 = ""
 
         nCCtype = 2
         if strPromoto and len(strPromoto) >= 1:
@@ -722,31 +751,6 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
                 if nMaskB > 64:
                     nMaskB = 64
             except BaseException:
-
-                if "o" in strPromoto:
-                    nCCtype = 2
-                    strPromoto = strPromoto.replace("o", "")
-                if "d" in strPromoto:
-                    nCCtype = 3
-                    strPromoto = strPromoto.replace("d", "")
-                if "c" in strPromoto:
-                    nCCtype = 1
-                    strPromoto = strPromoto.replace("c", "")
-                if "h" in strPromoto:
-                    nCCtype = 4
-                    strPromoto = strPromoto.replace("h", "")
-                if "s" in strPromoto:
-                    nCCtype = 5
-                    strPromoto = strPromoto.replace("s", "")
-                if "seg" in strPromoto:
-                    nCCtype = 7
-                    strPromoto = strPromoto.replace("seg", "")
-                if "o1" in strPromoto:
-                    nCCtype = 6
-                    strPromoto = strPromoto.replace("o1", "")
-                if "i" in strPromoto:
-                    nCCtype = 8
-                    strPromoto = strPromoto.replace("i", "")
                 if len(strPromoto) > 1:
                     if checkStrisCN(strPromoto):
                         strPromoto = FanyiCNToEn(strPromoto)
@@ -788,21 +792,22 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
                         hhh = 1024
                     img64, resultPath22 = img2imgAndMask(
                         strBase64Org, strAlllll, www, hhh, image_data, nMaskB, nCCtype)
-                    if not bUseCloth:
-                        res1111 = ImagePIL.open(resultPath22)
-                        noBGMan = ShiBiePeople(res1111)
-                        strBGBG = GetNoManBG(image_in_path)
-                        # print("image_in_path=>", image_in_path, strBGBG)
-                        new_image = ImagePIL.open(strBGBG)
-                        no_bg_image = noBGMan
-                        x, y = no_bg_image.size
-                        new_image.paste(no_bg_image, box=(
-                            0, 0, x, y), mask=no_bg_image)
-                        new_image.save("./p2p/IIIIII.png")
+                    return img64, resultPath22
+                    # if not bUseCloth:
+                    #     res1111 = ImagePIL.open(resultPath22)
+                    #     noBGMan = ShiBiePeople(res1111)
+                    #     strBGBG = GetNoManBG(image_in_path)
+                    #     # print("image_in_path=>", image_in_path, strBGBG)
+                    #     new_image = ImagePIL.open(strBGBG)
+                    #     no_bg_image = noBGMan
+                    #     x, y = no_bg_image.size
+                    #     new_image.paste(no_bg_image, box=(
+                    #         0, 0, x, y), mask=no_bg_image)
+                    #     new_image.save("./p2p/IIIIII.png")
 
-                        return new_image, "./p2p/IIIIII.png"
-                    else:
-                        return img64, resultPath22
+                    #     return new_image, "./p2p/IIIIII.png"
+                    # else:
+                    #     return img64, resultPath22
             except:
                 return 0, 0
 
@@ -855,7 +860,12 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
             else:
                 strOutName, image_data, strName2 = ShiBieHuman(
                     strBase64Org, bUseFace, bUseDick, imgININ)
-        except:
+        except BaseException as eee:
+            print("识别面部错误!!!!!!!!!!!!====>", eee)
+            strOutName, image_data, outImageFSMask = ShiBieClothNew(
+                imgININ, image_in_path)
+            nMaskB = 8
+        if image_data == "MAX":
             strOutName, image_data, outImageFSMask = ShiBieClothNew(
                 imgININ, image_in_path)
             nMaskB = 8
@@ -866,7 +876,7 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
 
     if image_data:
         useCustom = False
-        strAlllll = "bikini, (bikini 1.5), sexy, underwear, bra,"
+        strAlllll = "see-through shirt, swimsuit, bikini, <lora:bikini_under_clothes_v0.2:0.4>,<lora:Slingshot_AllLayer:0.7>"
         strAlllll2222 = ""
 
         nCCtype = 2
@@ -878,31 +888,6 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
                 if nMaskB > 64:
                     nMaskB = 64
             except BaseException:
-
-                if "o" in strPromoto:
-                    nCCtype = 2
-                    strPromoto = strPromoto.replace("o", "")
-                if "d" in strPromoto:
-                    nCCtype = 3
-                    strPromoto = strPromoto.replace("d", "")
-                if "c" in strPromoto:
-                    nCCtype = 1
-                    strPromoto = strPromoto.replace("c", "")
-                if "h" in strPromoto:
-                    nCCtype = 4
-                    strPromoto = strPromoto.replace("h", "")
-                if "s" in strPromoto:
-                    nCCtype = 5
-                    strPromoto = strPromoto.replace("s", "")
-                if "seg" in strPromoto:
-                    nCCtype = 7
-                    strPromoto = strPromoto.replace("seg", "")
-                if "o1" in strPromoto:
-                    nCCtype = 6
-                    strPromoto = strPromoto.replace("o1", "")
-                if "i" in strPromoto:
-                    nCCtype = 8
-                    strPromoto = strPromoto.replace("i", "")
                 if len(strPromoto) > 1:
                     if checkStrisCN(strPromoto):
                         strPromoto = FanyiCNToEn(strPromoto)
@@ -942,21 +927,285 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
                         hhh = 1024
                     img64, resultPath22 = img2imgAndMask22(
                         strBase64Org, strAlllll, www, hhh, image_data, nMaskB, nCCtype)
-                    if not bUseCloth:
-                        res1111 = ImagePIL.open(resultPath22)
-                        noBGMan = ShiBiePeople(res1111)
-                        strBGBG = GetNoManBG(image_in_path)
-                        # print("image_in_path=>", image_in_path, strBGBG)
-                        new_image = ImagePIL.open(strBGBG)
-                        no_bg_image = noBGMan
-                        x, y = no_bg_image.size
-                        new_image.paste(no_bg_image, box=(
-                            0, 0, x, y), mask=no_bg_image)
-                        new_image.save("./p2p/IIIIII.png")
+                    return img64, resultPath22
+                    # if not bUseCloth:
+                    #     res1111 = ImagePIL.open(resultPath22)
+                    #     noBGMan = ShiBiePeople(res1111)
+                    #     strBGBG = GetNoManBG(image_in_path)
+                    #     # print("image_in_path=>", image_in_path, strBGBG)
+                    #     new_image = ImagePIL.open(strBGBG)
+                    #     no_bg_image = noBGMan
+                    #     x, y = no_bg_image.size
+                    #     new_image.paste(no_bg_image, box=(
+                    #         0, 0, x, y), mask=no_bg_image)
+                    #     new_image.save("./p2p/IIIIII.png")
+                    #     return new_image, "./p2p/IIIIII.png"
+                    # else:
+                    #     return img64, resultPath22
+            except:
+                return 0, 0
 
-                        return new_image, "./p2p/IIIIII.png"
-                    else:
-                        return img64, resultPath22
+    return 0, 0
+
+
+def NudeOnePerson33(image_in_path: str, strPromoto: str):
+    # strPromoto += "旧算法"
+    imgININ = ImagePIL.open(image_in_path)
+    strBase64Org = "data:image/png;base64," + \
+        image_to_base64(imgININ)
+    # strBase64Org = "data:image/png;base64," + downloaded_file
+    bUseFace = False
+    bUseCloth = True
+    bShowMask = False
+    bMaskPureColor = False
+    if strPromoto and ("识别面部" in strPromoto):
+        strPromoto = strPromoto.replace("识别面部 ", "")
+        strPromoto = strPromoto.replace("识别面部", "")
+        bUseFace = True
+        bUseCloth = False
+    if strPromoto and ("识别衣服" in strPromoto):
+        strPromoto = strPromoto.replace("识别衣服 ", "")
+        strPromoto = strPromoto.replace("识别衣服", "")
+        bUseCloth = True
+    if strPromoto and ("旧算法" in strPromoto):
+        strPromoto = strPromoto.replace("旧算法 ", "")
+        strPromoto = strPromoto.replace("旧算法", "")
+        bUseCloth = False
+    if strPromoto and ("显示遮罩" in strPromoto):
+        strPromoto = strPromoto.replace("显示遮罩 ", "")
+        strPromoto = strPromoto.replace("显示遮罩", "")
+        bShowMask = True
+    if strPromoto and ("纯色" in strPromoto):
+        strPromoto = strPromoto.replace("纯色 ", "")
+        strPromoto = strPromoto.replace("纯色", "")
+        bMaskPureColor = True
+
+    image_data = None
+    strOutName = ""
+    bUseDick = False
+    bDelectBG = False
+    bTank = False
+    nMaskB = 1
+    outImageFSMask = None
+    if not bUseCloth:
+        try:
+            if bDelectBG:
+                strOutName, image_data, strName2 = ShiBieHuman(
+                    strBase64Org, bUseFace, bDelectBG, imgININ)
+            else:
+                strOutName, image_data, strName2 = ShiBieHuman(
+                    strBase64Org, bUseFace, bUseDick, imgININ)
+        except BaseException as eee:
+            print("识别面部错误!!!!!!!!!!!!====>", eee)
+            strOutName, image_data, outImageFSMask = ShiBieClothNew(
+                imgININ, image_in_path)
+            nMaskB = 8
+        if image_data == "MAX":
+            strOutName, image_data, outImageFSMask = ShiBieClothNew(
+                imgININ, image_in_path)
+            nMaskB = 8
+    else:
+        strOutName, image_data, outImageFSMask = ShiBieClothNew(
+            imgININ, image_in_path)
+        nMaskB = 8
+
+    if image_data:
+        useCustom = False
+        strAlllll = "school Uniform,,JK_style,short-sleeved JK_shirt,JK_suit, <lora:jk uniform:0.7>"
+        strAlllll2222 = ""
+
+        nCCtype = 2
+        if strPromoto and len(strPromoto) >= 1:
+            try:
+                nMaskB = int(strPromoto)
+                if (nMaskB <= 0):
+                    nMaskB = 0
+                if nMaskB > 64:
+                    nMaskB = 64
+            except BaseException:
+                if len(strPromoto) > 1:
+                    if checkStrisCN(strPromoto):
+                        strPromoto = FanyiCNToEn(strPromoto)
+                    strAlllll += strPromoto
+                    useCustom = True
+                else:
+                    strAlllll = strAlllll + strAlllll2222
+            print("额外关键词===>", strPromoto)
+        else:
+            strAlllll = strAlllll + strAlllll2222
+
+        bCan = True
+        if bCan:
+            resultPath = ""
+            try:
+                if True:
+                    resultPath22 = ""
+                    urlFFFFF = ""
+
+                    strBBBB = strBase64Org.replace(
+                        "data:image/png;base64,", "")
+                    immm = base64_to_pillow(strBBBB)
+
+                    if outImageFSMask and bMaskPureColor:
+                        x, y = outImageFSMask.size
+                        immm.paste(outImageFSMask, box=(
+                            0, 0, x, y), mask=outImageFSMask)
+                        immm.save("tempMask.png")
+                        strBase64Org = "data:image/png;base64," + \
+                            image_to_base64(immm)
+
+                    imgTempSize = immm.size
+                    www = 1024
+                    hhh = 720
+                    if imgTempSize[0] < imgTempSize[1]:
+                        www = 720
+                        hhh = 1024
+                    img64, resultPath22 = img2imgAndMask22(
+                        strBase64Org, strAlllll, www, hhh, image_data, nMaskB, nCCtype)
+                    # if not bUseCloth:
+                    #     res1111 = ImagePIL.open(resultPath22)
+                    #     noBGMan = ShiBiePeople(res1111)
+                    #     strBGBG = GetNoManBG(image_in_path)
+                    #     # print("image_in_path=>", image_in_path, strBGBG)
+                    #     new_image = ImagePIL.open(strBGBG)
+                    #     no_bg_image = noBGMan
+                    #     x, y = no_bg_image.size
+                    #     new_image.paste(no_bg_image, box=(
+                    #         0, 0, x, y), mask=no_bg_image)
+                    #     new_image.save("./p2p/IIIIII.png")
+                    #     return new_image, "./p2p/IIIIII.png"
+                    # else:
+                    #     return img64, resultPath22
+                    return img64, resultPath22
+            except:
+                return 0, 0
+
+    return 0, 0
+
+
+def NudeOnePerson44(image_in_path: str, strPromoto: str):
+    # strPromoto += "旧算法"
+    imgININ = ImagePIL.open(image_in_path)
+    strBase64Org = "data:image/png;base64," + \
+        image_to_base64(imgININ)
+    # strBase64Org = "data:image/png;base64," + downloaded_file
+    bUseFace = False
+    bUseCloth = True
+    bShowMask = False
+    bMaskPureColor = False
+    if strPromoto and ("识别面部" in strPromoto):
+        strPromoto = strPromoto.replace("识别面部 ", "")
+        strPromoto = strPromoto.replace("识别面部", "")
+        bUseFace = True
+        bUseCloth = False
+    if strPromoto and ("识别衣服" in strPromoto):
+        strPromoto = strPromoto.replace("识别衣服 ", "")
+        strPromoto = strPromoto.replace("识别衣服", "")
+        bUseCloth = True
+    if strPromoto and ("旧算法" in strPromoto):
+        strPromoto = strPromoto.replace("旧算法 ", "")
+        strPromoto = strPromoto.replace("旧算法", "")
+        bUseCloth = False
+    if strPromoto and ("显示遮罩" in strPromoto):
+        strPromoto = strPromoto.replace("显示遮罩 ", "")
+        strPromoto = strPromoto.replace("显示遮罩", "")
+        bShowMask = True
+    if strPromoto and ("纯色" in strPromoto):
+        strPromoto = strPromoto.replace("纯色 ", "")
+        strPromoto = strPromoto.replace("纯色", "")
+        bMaskPureColor = True
+
+    image_data = None
+    strOutName = ""
+    bUseDick = False
+    bDelectBG = False
+    bTank = False
+    nMaskB = 1
+    outImageFSMask = None
+    if not bUseCloth:
+        try:
+            if bDelectBG:
+                strOutName, image_data, strName2 = ShiBieHuman(
+                    strBase64Org, bUseFace, bDelectBG, imgININ)
+            else:
+                strOutName, image_data, strName2 = ShiBieHuman(
+                    strBase64Org, bUseFace, bUseDick, imgININ)
+        except BaseException as eee:
+            print("识别面部错误!!!!!!!!!!!!====>", eee)
+            strOutName, image_data, outImageFSMask = ShiBieClothNew(
+                imgININ, image_in_path)
+            nMaskB = 8
+        if image_data == "MAX":
+            strOutName, image_data, outImageFSMask = ShiBieClothNew(
+                imgININ, image_in_path)
+            nMaskB = 8
+    else:
+        strOutName, image_data, outImageFSMask = ShiBieClothNew(
+            imgININ, image_in_path)
+        nMaskB = 8
+
+    if image_data:
+        useCustom = False
+        strAlllll = "JK, school Uniform, jyoshi koukousei Uniform,"
+        strAlllll2222 = ""
+
+        nCCtype = 2
+        if strPromoto and len(strPromoto) >= 1:
+            if len(strPromoto) > 1:
+                if checkStrisCN(strPromoto):
+                    strPromoto = FanyiCNToEn(strPromoto)
+                strAlllll = strPromoto
+                useCustom = True
+            else:
+                strAlllll = strAlllll + strAlllll2222
+        else:
+            strAlllll = strAlllll
+
+        print("关键词===>", strAlllll)
+
+        bCan = True
+        if bCan:
+            resultPath = ""
+            try:
+                if True:
+                    resultPath22 = ""
+                    urlFFFFF = ""
+
+                    strBBBB = strBase64Org.replace(
+                        "data:image/png;base64,", "")
+                    immm = base64_to_pillow(strBBBB)
+
+                    if outImageFSMask and bMaskPureColor:
+                        x, y = outImageFSMask.size
+                        immm.paste(outImageFSMask, box=(
+                            0, 0, x, y), mask=outImageFSMask)
+                        immm.save("tempMask.png")
+                        strBase64Org = "data:image/png;base64," + \
+                            image_to_base64(immm)
+
+                    imgTempSize = immm.size
+                    www = 1024
+                    hhh = 720
+                    if imgTempSize[0] < imgTempSize[1]:
+                        www = 720
+                        hhh = 1024
+                    img64, resultPath22 = img2imgAndMask22(
+                        strBase64Org, strAlllll, www, hhh, image_data, nMaskB, nCCtype)
+                    # if not bUseCloth:
+                    #     res1111 = ImagePIL.open(resultPath22)
+                    #     noBGMan = ShiBiePeople(res1111)
+                    #     strBGBG = GetNoManBG(image_in_path)
+                    #     # print("image_in_path=>", image_in_path, strBGBG)
+                    #     new_image = ImagePIL.open(strBGBG)
+                    #     no_bg_image = noBGMan
+                    #     x, y = no_bg_image.size
+                    #     new_image.paste(no_bg_image, box=(
+                    #         0, 0, x, y), mask=no_bg_image)
+                    #     new_image.save("./p2p/IIIIII.png")
+                    #     return new_image, "./p2p/IIIIII.png"
+                    # else:
+                    #     return img64, resultPath22
+                    return img64, resultPath22
             except:
                 return 0, 0
 

@@ -1,19 +1,10 @@
 
 from pathlib import Path
 from io import BytesIO
-import requests
-import json
-import time
-import numpy as np
-from PIL import ImageDraw
 from PIL import Image as ImagePIL
 import base64
-from json import JSONDecoder
-import cv2
 from rembg import remove
 from rembg.session_factory import new_session
-import numpy as np
-import random
 import lama_cleaner
 
 
