@@ -1,4 +1,5 @@
 
+import io
 import dlib
 from SegCloth import segment_clothing
 from transformers import pipeline
@@ -54,13 +55,13 @@ def image_to_base64(img, fmt='png'):
     return base64_str
 
 
-def DrawRect(img: ImagePIL, face_rectangleArr, landmarkArr, bUseFace, bUseDick):
+def DrawRect(img: ImagePIL, face_rectangleArr, landmarkArr, bUseFace, bDeleteBG):
     # image_path = strPath
     # img = ImagePIL.open(image_path)
     # # img = ImagePIL.open("./test1.png")
     draw = ImageDraw.Draw(img)
 
-    if bUseDick:
+    if bDeleteBG:
         wwwww = img.size[0]
         hhhhh = img.size[1]
         draw.rectangle([(0, 0),
@@ -130,7 +131,7 @@ predictor = dlib.shape_predictor(
     "shape_predictor_68_face_landmarks.dat")  # 68点模型
 
 
-def ShiBieHuman(strBase, bUseFace=False, bUseDick=False, imgININ=None):
+def ShiBieHuman(strBase, bUseFace=False, bDeleteBG=False, imgININ=None):
     # http_urlface = "https://api-cn.faceplusplus.com/facepp/v3/detect"
     # # key = "X5CYnsaJJCgMJXMPo9JGyHWfsqWx80gr"
     # # secret = "K1zHwlcl1RalyoLOH3vWLsouLDjPcl69"
@@ -186,7 +187,7 @@ def ShiBieHuman(strBase, bUseFace=False, bUseDick=False, imgININ=None):
         if strBBBBjjj:
             immm = base64_to_pillow(strBBBBjjj)
             strOutName, image_data = DrawRect(
-                immm, face_rectangleArr, landmarkArr, bUseFace, bUseDick)
+                immm, face_rectangleArr, landmarkArr, bUseFace, bDeleteBG)
             return strOutName, image_data, ""
         else:
             return None, None, None
@@ -196,13 +197,13 @@ def ShiBieHuman(strBase, bUseFace=False, bUseDick=False, imgININ=None):
 
 def img2imgAndMask(imgBase64, prompt, wwwww, height11, image_data, mask_blur, nCCType=2):
     payload = {
-        "prompt": basetag + "," + prompt+",<lora:meinv123:0.3>,<lora:add_detail:0.4>,<lora:Grool:0.6>,Pussy grool",
+        "prompt": basetag + "," + prompt+", <lora:meinv123:0.7>,<lora:add_detail:0.7>, <lora:Grool LORA:0.6>, grool",
         "negative_prompt": lowQuality,
         "sampler_name": "DPM++ 2M SDE Karras",
         "sampler_index": "DPM++ 2M SDE Karras",
         "resize_mode": 2,
-        "steps": 26,
-        "cfg_scale": 7,
+        "steps": 30,
+        "cfg_scale": 10,
         "batch": 1,
         "width": wwwww,
         "height": height11,
@@ -213,7 +214,7 @@ def img2imgAndMask(imgBase64, prompt, wwwww, height11, image_data, mask_blur, nC
         "mask_blur_y": mask_blur,
         "seed": -1,  # 3690476257
         # 肤色问题 https://www.reddit.com/r/StableDiffusion/comments/1375wlb/inpainting_how_to_match_skin_tones/
-        "denoising_strength": 1,
+        "denoising_strength": 0.92,
         "inpaint_full_res": True,
         "inpaint_full_res_padding": 64,
         "inpainting_fill": 1,
@@ -435,10 +436,10 @@ def fooocusimg2imgAndMask(imgBase64, image_data):
     imgBase64 = imgBase64.replace("data:image/png;base64,", "")
     image_data = image_data.replace("data:image/png;base64,", "")
     result = inpaint_outpaint(params={
-        "base_model_name": "halcyonSDXL_v13NSFW.safetensors",
-        # "base_model_name": "xxmix9realisticsdxl_v10.safetensors",
-        "prompt": "nsfw,girl,(nude 1.5),pussy,breastes,pink nipple,xxmixgirl",
-        "inpaint_additional_prompt": "nsfw,(nude 1.5),pussy,breastes,pink nipple",
+        # "base_model_name": "halcyonSDXL_v13NSFW.safetensors",
+        "base_model_name": "xxmix9realisticsdxl_v10.safetensors",
+        "prompt": "nsfw,girl,(nude 1),pussy,breastes,nipple,xxmixgirl",
+        "inpaint_additional_prompt": "nsfw,(nude 1),pussy,breastes,nipple",
         "input_image": imgBase64,
         "input_mask": image_data,
         "advanced_params": {
@@ -676,7 +677,7 @@ def FanyiCNToEn(strCn: str):
         return strAAA
     return strAAA
 
-
+#nude
 def NudeOnePerson(image_in_path: str, strPromoto: str):
     imgININ = ImagePIL.open(image_in_path)
     strBase64Org = "data:image/png;base64," + \
@@ -686,6 +687,8 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
     bUseCloth = True
     bShowMask = False
     bMaskPureColor = False
+    bUseDick = False
+    bDelectBG = False
     if strPromoto and ("识别面部" in strPromoto):
         strPromoto = strPromoto.replace("识别面部 ", "")
         strPromoto = strPromoto.replace("识别面部", "")
@@ -707,11 +710,14 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
         strPromoto = strPromoto.replace("纯色 ", "")
         strPromoto = strPromoto.replace("纯色", "")
         bMaskPureColor = True
+    if strPromoto and ("删除背景" in strPromoto):
+        strPromoto = strPromoto.replace("删除背景 ", "")
+        strPromoto = strPromoto.replace("删除背景", "")
+        bDelectBG = True
+        bUseCloth = False
 
     image_data = None
     strOutName = ""
-    bUseDick = False
-    bDelectBG = False
     bTank = False
     nMaskB = 1
     outImageFSMask = None
@@ -739,7 +745,7 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
 
     if image_data:
         useCustom = False
-        strAlllll = "NSFW,nsfw,(naked 1),(nude girl 1),(no cloth 1),breasts,pussy,pink nipples,"
+        strAlllll = "NSFW,nsfw,(naked 1.5),(nude girl 1.5),(no cloth 2),breasts,pussy,pink nipples,"
         strAlllll2222 = ""
 
         nCCtype = 2
@@ -813,7 +819,7 @@ def NudeOnePerson(image_in_path: str, strPromoto: str):
 
     return 0, 0
 
-
+#bikini
 def NudeOnePerson22(image_in_path: str, strPromoto: str):
     imgININ = ImagePIL.open(image_in_path)
     strBase64Org = "data:image/png;base64," + \
@@ -823,6 +829,8 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
     bUseCloth = True
     bShowMask = False
     bMaskPureColor = False
+    bUseDick = False
+    bDelectBG = False
     if strPromoto and ("识别面部" in strPromoto):
         strPromoto = strPromoto.replace("识别面部 ", "")
         strPromoto = strPromoto.replace("识别面部", "")
@@ -844,11 +852,14 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
         strPromoto = strPromoto.replace("纯色 ", "")
         strPromoto = strPromoto.replace("纯色", "")
         bMaskPureColor = True
+    if strPromoto and ("删除背景" in strPromoto):
+        strPromoto = strPromoto.replace("删除背景 ", "")
+        strPromoto = strPromoto.replace("删除背景", "")
+        bDelectBG = True
+        bUseCloth = False
 
     image_data = None
     strOutName = ""
-    bUseDick = False
-    bDelectBG = False
     bTank = False
     nMaskB = 1
     outImageFSMask = None
@@ -876,8 +887,9 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
 
     if image_data:
         useCustom = False
-        strAlllll = "see-through shirt, swimsuit, bikini, <lora:bikini_under_clothes_v0.2:0.4>,<lora:Slingshot_AllLayer:0.7>"
-        strAlllll2222 = ""
+        # <lora:Mk_kzy_v1.1:0.86>,<lora:Slingshot_AllLayer:0.2>
+        # strAlllll = "swimsuit,bikini,<lora:Mk_kzy_v1.1:0.6>,"
+        strAlllll = "swimsuit,bikini,underwear"
 
         nCCtype = 2
         if strPromoto and len(strPromoto) >= 1:
@@ -891,13 +903,13 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
                 if len(strPromoto) > 1:
                     if checkStrisCN(strPromoto):
                         strPromoto = FanyiCNToEn(strPromoto)
-                    strAlllll += strPromoto
+                    strAlllll += ("(" + strPromoto+" 1.3)")
                     useCustom = True
                 else:
-                    strAlllll = strAlllll + strAlllll2222
+                    strAlllll = strAlllll
             print("额外关键词===>", strPromoto)
         else:
-            strAlllll = strAlllll + strAlllll2222
+            strAlllll = strAlllll
 
         bCan = True
         if bCan:
@@ -947,7 +959,7 @@ def NudeOnePerson22(image_in_path: str, strPromoto: str):
 
     return 0, 0
 
-
+#jk
 def NudeOnePerson33(image_in_path: str, strPromoto: str):
     # strPromoto += "旧算法"
     imgININ = ImagePIL.open(image_in_path)
@@ -958,6 +970,8 @@ def NudeOnePerson33(image_in_path: str, strPromoto: str):
     bUseCloth = True
     bShowMask = False
     bMaskPureColor = False
+    bUseDick = False
+    bDelectBG = False
     if strPromoto and ("识别面部" in strPromoto):
         strPromoto = strPromoto.replace("识别面部 ", "")
         strPromoto = strPromoto.replace("识别面部", "")
@@ -979,11 +993,14 @@ def NudeOnePerson33(image_in_path: str, strPromoto: str):
         strPromoto = strPromoto.replace("纯色 ", "")
         strPromoto = strPromoto.replace("纯色", "")
         bMaskPureColor = True
+    if strPromoto and ("删除背景" in strPromoto):
+        strPromoto = strPromoto.replace("删除背景 ", "")
+        strPromoto = strPromoto.replace("删除背景", "")
+        bDelectBG = True
+        bUseCloth = False
 
     image_data = None
     strOutName = ""
-    bUseDick = False
-    bDelectBG = False
     bTank = False
     nMaskB = 1
     outImageFSMask = None
@@ -1011,7 +1028,7 @@ def NudeOnePerson33(image_in_path: str, strPromoto: str):
 
     if image_data:
         useCustom = False
-        strAlllll = "school Uniform,,JK_style,short-sleeved JK_shirt,JK_suit, <lora:jk uniform:0.7>"
+        strAlllll = "school Uniform,,JK_style,short-sleeved JK_shirt,JK_suit, <lora:jk uniform:0.7>,"
         strAlllll2222 = ""
 
         nCCtype = 2
@@ -1082,7 +1099,7 @@ def NudeOnePerson33(image_in_path: str, strPromoto: str):
 
     return 0, 0
 
-
+#hanfu
 def NudeOnePerson44(image_in_path: str, strPromoto: str):
     # strPromoto += "旧算法"
     imgININ = ImagePIL.open(image_in_path)
@@ -1093,15 +1110,13 @@ def NudeOnePerson44(image_in_path: str, strPromoto: str):
     bUseCloth = True
     bShowMask = False
     bMaskPureColor = False
+    bUseDick = False
+    bDelectBG = False
     if strPromoto and ("识别面部" in strPromoto):
         strPromoto = strPromoto.replace("识别面部 ", "")
         strPromoto = strPromoto.replace("识别面部", "")
         bUseFace = True
         bUseCloth = False
-    if strPromoto and ("识别衣服" in strPromoto):
-        strPromoto = strPromoto.replace("识别衣服 ", "")
-        strPromoto = strPromoto.replace("识别衣服", "")
-        bUseCloth = True
     if strPromoto and ("旧算法" in strPromoto):
         strPromoto = strPromoto.replace("旧算法 ", "")
         strPromoto = strPromoto.replace("旧算法", "")
@@ -1114,14 +1129,26 @@ def NudeOnePerson44(image_in_path: str, strPromoto: str):
         strPromoto = strPromoto.replace("纯色 ", "")
         strPromoto = strPromoto.replace("纯色", "")
         bMaskPureColor = True
+    if strPromoto and ("汉服" in strPromoto):
+        bMaskPureColor = True
+        # bUseFace = True
+        bUseCloth = True
+    if strPromoto and ("识别衣服" in strPromoto):
+        strPromoto = strPromoto.replace("识别衣服 ", "")
+        strPromoto = strPromoto.replace("识别衣服", "")
+        bUseCloth = True
+    if strPromoto and ("删除背景" in strPromoto):
+        strPromoto = strPromoto.replace("删除背景 ", "")
+        strPromoto = strPromoto.replace("删除背景", "")
+        bDelectBG = True
+        bUseCloth = False
 
     image_data = None
     strOutName = ""
-    bUseDick = False
-    bDelectBG = False
     bTank = False
     nMaskB = 1
     outImageFSMask = None
+
     if not bUseCloth:
         try:
             if bDelectBG:
@@ -1146,20 +1173,23 @@ def NudeOnePerson44(image_in_path: str, strPromoto: str):
 
     if image_data:
         useCustom = False
-        strAlllll = "JK, school Uniform, jyoshi koukousei Uniform,"
-        strAlllll2222 = ""
+        strAlllll = "school Uniform,,JK_style,short-sleeved JK_shirt,JK_suit, <lora:jk uniform:0.7>,"
 
         nCCtype = 2
-        if strPromoto and len(strPromoto) >= 1:
-            if len(strPromoto) > 1:
+
+        if strPromoto and ("汉服" in strPromoto):
+            strPromoto = strPromoto.replace("汉服", "", 1)
+            if len(strPromoto) > 1 and checkStrisCN(strPromoto):
+                strPromoto = FanyiCNToEn(strPromoto)
+            strAlllll = "<lora:hanfu40-beta-3:0.88>,hanfu,tang style," + strPromoto
+        else:
+            if strPromoto and len(strPromoto) >= 1:
                 if checkStrisCN(strPromoto):
                     strPromoto = FanyiCNToEn(strPromoto)
                 strAlllll = strPromoto
                 useCustom = True
             else:
-                strAlllll = strAlllll + strAlllll2222
-        else:
-            strAlllll = strAlllll
+                strAlllll = strAlllll
 
         print("关键词===>", strAlllll)
 
@@ -1191,22 +1221,40 @@ def NudeOnePerson44(image_in_path: str, strPromoto: str):
                         hhh = 1024
                     img64, resultPath22 = img2imgAndMask22(
                         strBase64Org, strAlllll, www, hhh, image_data, nMaskB, nCCtype)
-                    # if not bUseCloth:
-                    #     res1111 = ImagePIL.open(resultPath22)
-                    #     noBGMan = ShiBiePeople(res1111)
-                    #     strBGBG = GetNoManBG(image_in_path)
-                    #     # print("image_in_path=>", image_in_path, strBGBG)
-                    #     new_image = ImagePIL.open(strBGBG)
-                    #     no_bg_image = noBGMan
-                    #     x, y = no_bg_image.size
-                    #     new_image.paste(no_bg_image, box=(
-                    #         0, 0, x, y), mask=no_bg_image)
-                    #     new_image.save("./p2p/IIIIII.png")
-                    #     return new_image, "./p2p/IIIIII.png"
-                    # else:
-                    #     return img64, resultPath22
+                    if not bUseCloth and bDelectBG:
+                        res1111 = ImagePIL.open(resultPath22)
+                        noBGMan = ShiBiePeople(res1111)
+                        strBGBG = GetNoManBG(image_in_path)
+                        new_image = ImagePIL.open(strBGBG)
+                        no_bg_image = noBGMan
+                        x, y = no_bg_image.size
+                        
+                        print("no_bg_image.size, new_image.size =>   ",  no_bg_image.size, new_image.size)
+                        
+                        new_image.paste(no_bg_image, box=(
+                            0, 0, x, y), mask=no_bg_image)
+                        new_image.save("./p2p/IIIIII.png")           
+                        # 将图像保存到字节流
+                        buffered = io.BytesIO()
+                        new_image.save(buffered, format="PNG")  # 指定图像格式
+                        # 将字节流转换为Base64字符串
+                        img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                        return img_str, "./p2p/IIIIII.png"
+                    else:
+                        return img64, resultPath22
                     return img64, resultPath22
             except:
                 return 0, 0
 
     return 0, 0
+
+
+
+
+def NudeOnePersonFooocus(image_in_path: str):
+    imgININ = ImagePIL.open(image_in_path)
+    strBase64Org = "data:image/png;base64," + image_to_base64(imgININ)
+    strOutName, image_data, outImageFSMask = ShiBieClothNew(imgININ, image_in_path)
+    if image_data!=None:
+        url = fooocusimg2imgAndMask(strBase64Org, image_data)
+        return url
